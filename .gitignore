@@ -1,0 +1,7 @@
+.DS_Store
+out
+*.profdata
+*.profraw
+.toolchain
+local.env
+.vs
