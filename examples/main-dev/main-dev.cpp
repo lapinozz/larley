@@ -1,14 +1,5 @@
-#include <algorithm>
 #include <any>
-#include <array>
-#include <iomanip>
 #include <iostream>
-#include <ranges>
-#include <string>
-#include <unordered_map>
-#include <unordered_set>
-#include <variant>
-#include <vector>
 
 #include "magic_enum/magic_enum.hpp"
 #include "magic_enum/magic_enum_flags.hpp"
@@ -118,11 +109,12 @@ void testMaths()
     const auto inputs = gb.makeInputs(str);
 
     auto parsed = parse(inputs);
-    auto tree = buildTree(inputs, parsed);
-    auto result = applySemantics(inputs, tree);
+    std::cout << "Match found: " << parsed.matchCount << std::endl;
 
+    auto tree = buildTree(inputs, parsed);
     printTree(tree, str);
 
+    auto result = applySemantics(inputs, tree);
     std::cout << std::any_cast<float>(result) << std::endl;
 }
 

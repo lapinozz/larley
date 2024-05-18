@@ -1,13 +1,8 @@
 #pragma once
 
-#include <variant>
-#include <string>
-#include <vector>
-#include <array>
 #include <ranges>
-#include <algorithm>
-#include <unordered_set>
-#include <unordered_map>
+#include <variant>
+#include <vector>
 
 #include "semantics.hpp"
 
@@ -79,17 +74,10 @@ struct Parser
 
     using StateSet = std::vector<Item>;
 
-    enum class ParseState
-    {
-        Incomplete,
-        Erroneous,
-        Complete
-    };
-
     struct ParseResult
     {
         std::vector<StateSet> S;
-        ParseState state;
+        bool completeMatch = false;
         std::size_t matchCount{};
     };
 
@@ -184,16 +172,16 @@ struct Parser
             }
         }
 
-        if (S.size() != src.size() + 1)
+        if (S.size() == src.size() + 1)
         {
-            std::cout << "length missmatch, incomplete parse" << std::endl;
+            result.completeMatch = true;
         }
 
         for (const auto item : S.back())
         {
             if (item.start == 0 && item.isComplete() && item.rule.product == grammar.startSymbol)
             {
-                std::cout << "match found" << std::endl;
+                result.matchCount++;
             }
         }
 

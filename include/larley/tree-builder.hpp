@@ -1,13 +1,6 @@
 #pragma once
 
-#include <variant>
-#include <string>
 #include <vector>
-#include <array>
-#include <ranges>
-#include <algorithm>
-#include <unordered_set>
-#include <unordered_map>
 
 #include "parser.hpp"
 
@@ -54,13 +47,14 @@ struct TreeBuilder
         for (auto& edgeSet : chart)
         {
             std::ranges::sort(edgeSet, [](auto& edge1, auto& edge2)
-                              {
+            {
                 if (edge2.rule && edge1.rule == edge2.rule)
                 {
                     return edge2.end < edge1.end;
                 }
 
-                return edge1.rule < edge2.rule; });
+                return edge1.rule < edge2.rule;
+            });
         }
 
         const auto splitEdge = [&](Edge edge)

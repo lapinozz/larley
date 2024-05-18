@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <span>
 
 template <typename NonTerminalT, typename TerminalT, typename SrcElementT = char, typename CtxT = void>
 struct ParserTypes

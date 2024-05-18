@@ -1,5 +1,10 @@
 #pragma once
 
+#include <algorithm>
+#include <unordered_set>
+#include <variant>
+#include <vector>
+
 namespace larley
 {
 
@@ -89,7 +94,9 @@ struct Grammar
                 }
 
                 const bool allNull = std::ranges::all_of(workRule->symbols, [&](const auto& symbol)
-                                                         { return symbol.index() == 0 && nullables.contains(std::get<0>(symbol)); });
+                { 
+                    return symbol.index() == 0 && nullables.contains(std::get<0>(symbol)); 
+                });
 
                 if (!allNull)
                 {
