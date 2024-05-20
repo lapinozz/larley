@@ -18,9 +18,39 @@ struct Rule
 
     std::size_t id;
 
+    // Might make more sense for the ignored related things to be in Semantics instead
+    std::uint64_t ignored;
+
     bool isEmpty() const
     {
         return symbols.size() == 0;
+    }
+
+    void add(Symbol symbol, bool isIgnored = false)
+    {
+        if (isIgnored)
+        {
+            setIgnored(symbols.size(), true);
+        }
+
+        symbols.push_back(std::move(symbol));
+    }
+
+    void setIgnored(std::size_t index, bool isIgnored)
+    {
+        if (isIgnored)
+        {
+            ignored |= (1 << index);
+        }
+        else
+        {
+            ignored &= ~(1 << index);
+        }
+    }
+
+    bool isIgnored(std::size_t index) const
+    {
+        return (ignored >> index) & 1;
     }
 };
 

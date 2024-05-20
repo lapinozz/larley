@@ -97,12 +97,14 @@ struct StringGrammarBuilder
     using LT = ParserTypes::Terminal;
 
     NT startSymbol;
+    std::optional<NT> whitespaceSymbol;
+
     std::vector<Rule<ParserTypes>> rules;
     Semantics<ParserTypes> semantics;
 
     using Str = StringGrammar::Str;
 
-    StringGrammarBuilder(NT startSymbol) : startSymbol { startSymbol }
+    StringGrammarBuilder(NT startSymbol, std::optional<NT> whitespaceSymbol = {}) : startSymbol{startSymbol}, whitespaceSymbol{whitespaceSymbol}
     {
 
     }
@@ -149,21 +151,54 @@ struct StringGrammarBuilder
         Rule<ParserTypes> rule;
         Semantics<ParserTypes>::SemanticAction action;
 
+        void addWhitespace(bool checkForDuplicate)
+        {
+            const auto& whitespace = grammarBuilder.whitespaceSymbol;
+            if (!whitespace)
+            {
+                return;
+            }
+
+            if (rule.product == whitespace)
+            {
+                return;
+            }
+
+            if (checkForDuplicate && !rule.symbols.empty())
+            {
+                if (NT* lastSymbol = std::get_if<NT>(&rule.symbols.back()))
+                {
+                    if (*lastSymbol == whitespace)
+                    {
+                        return;
+                    }
+                }
+            }
+
+            rule.add(*whitespace, true);
+        }
+
         RuleBuilder& operator&(const StringSymbolBuilder& symbolBuilder)
         {
-            rule.symbols.emplace_back(symbolBuilder.symbol);
+            addWhitespace(true);
+            rule.add(symbolBuilder.symbol);
+            addWhitespace(false);
+
             return *this;
         }
 
         RuleBuilder& operator&(const NT& token)
         {
-            rule.symbols.emplace_back(token);
+            rule.add(token);
             return *this;
         }
 
         RuleBuilder& operator&(const LT& token)
         {
-            rule.symbols.emplace_back(token);
+            addWhitespace(true);
+            rule.add(token);
+            addWhitespace(false);
+
             return *this;
         }
 

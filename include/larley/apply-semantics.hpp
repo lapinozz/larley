@@ -21,7 +21,12 @@ auto applySemantics(const ParserInputs<ParserTypes>& inputs, const typename Tree
             SemanticValues values;
             for (int x = 0; x < edge.rule->symbols.size(); x++)
             {
-                values.push_back(self(self));
+                auto value = self(self);
+
+                if (!edge.rule->isIgnored(x))
+                {
+                    values.push_back(std::move(value));
+                }
             }
 
             const auto& action = inputs.semantics.actions[edge.rule->id];

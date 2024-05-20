@@ -27,7 +27,8 @@ enum NonTerminals
     Factor,
     Number,
     Digit,
-    Digits
+    Digits,
+    Whitespace
 };
 
 void printTree(const auto& tree, const auto& str)
@@ -85,7 +86,9 @@ void testMaths()
     gb(Digit)   >> Range{"0", "9"}    
     */
 
-    GB gb{Sum};
+    GB gb{Sum, Whitespace};
+    gb(Whitespace);
+    gb(Whitespace) >> Regex{"\\s+"};
     gb(Sum)     >> Sum & "+" & Product          | [](const auto& vals) { return vals[0].as<float>() + vals[2].as<float>(); };
     gb(Sum)     >> Sum & "-" & Product          | [](const auto& vals) { return vals[0].as<float>() - vals[2].as<float>(); };
     gb(Sum)     >> Product;
@@ -104,7 +107,7 @@ void testMaths()
     
 // clang-format on
 
-    std::string str = "1+(2/3)*4.5";
+    std::string str = " 1 + ( 2  / 3 ) \t* \t\t\t4.5 ";
 
     const auto inputs = gb.makeInputs(str);
 
