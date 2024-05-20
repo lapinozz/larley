@@ -155,7 +155,7 @@ struct Parser
 
                                     if (grammar.nullables.contains(rule.product))
                                     {
-                                        addItem(stateIndex, Item{rule, stateIndex}.advanced());
+                                        addItem(stateIndex, item.advanced());
                                     }
                                 }
                             }
