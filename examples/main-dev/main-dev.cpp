@@ -1,5 +1,8 @@
 #include <any>
+#include <string>
 #include <iostream>
+#include <iomanip>
+#include <charconv>
 
 #include "magic_enum/magic_enum.hpp"
 #include "magic_enum/magic_enum_flags.hpp"
@@ -33,6 +36,8 @@ enum NonTerminals
 
 void printTree(const auto& tree, const auto& str)
 {
+    std::cout << "-------- Tree --------" << std::endl;
+
     std::size_t index = 0;
     const auto iter = [&](this const auto& iter, std::size_t depth = 0) -> void
     {
@@ -59,6 +64,43 @@ void printTree(const auto& tree, const auto& str)
     };
 
     iter();
+
+    std::cout << std::endl << std::endl;
+}
+
+void printGrammar(const auto& grammar)
+{
+    std::cout << "-------- Grammar --------" << std::endl;
+
+    std::size_t maxSymbolLength{};
+    for (const auto& rule : grammar.rules)
+    {
+        const auto name = magic_enum::enum_name(rule.product);
+        maxSymbolLength = std::max(maxSymbolLength, name.size());
+    }
+
+    for (const auto& rule : grammar.rules)
+    {
+        const auto name = magic_enum::enum_name(rule.product);
+        std::cout << std::setw(maxSymbolLength) << name;
+        std::cout << " ->";
+
+        for (const auto& symbol : rule.symbols)
+        {
+            std::cout << " ";
+            if (auto* NT = std::get_if<0>(&symbol))
+            {
+                std::cout << magic_enum::enum_name(*NT);
+            }
+            else
+            {
+                std::cout << "\"\"";
+            }
+        }
+
+        std::cout << std::endl;
+    }
+
 }
 
 void testMaths()
@@ -110,6 +152,8 @@ void testMaths()
     std::string str = " 1 + ( 2  / 3 ) \t* \t\t\t4.5 ";
 
     const auto inputs = gb.makeInputs(str);
+
+    printGrammar(inputs.grammar);
 
     auto parsed = parse(inputs);
     std::cout << "Match found: " << parsed.matchCount << std::endl;
