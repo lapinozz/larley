@@ -37,19 +37,11 @@ int match(std::span<const char> data, size_t index, const TerminalSymbol& symbol
 
                 const std::string_view subsrc(data.begin() + index, data.begin() + index + symbol.size());
                 const auto matches = subsrc == symbol;
-                std::cout << "check: \"" << subsrc << "\" vs \"" << symbol << "\" : " << matches << std::endl;
 
                 return matches ? static_cast<int>(subsrc.size()) : -1;
             },
             [&](const ChoiceTerminalSymbol& symbol) -> int
             {
-                std::cout << '[';
-                for (const auto lit : symbol)
-                {
-                    std::cout << "\"" << lit << "\" ";
-                }
-                std::cout << ']';
-
                 for (const auto& partial : symbol)
                 {
                     if (index + partial.size() >= data.size())
@@ -58,16 +50,12 @@ int match(std::span<const char> data, size_t index, const TerminalSymbol& symbol
                     }
 
                     const std::string_view subsrc(data.begin() + index, data.begin() + index + partial.size());
-                    const auto matches = subsrc == partial;
-                    std::cout << "check: \"" << data[index] << "\" : " << matches << std::endl;
-                    if (matches)
+                    if (const auto matches = subsrc == partial)
                     {
-                        std::cout << std::endl;
                         return static_cast<int>(subsrc.size());
                     }
                 }
 
-                std::cout << std::endl;
                 return -1;
             },
             [&](const RangeTerminalSymbol& symbol) -> int
@@ -77,16 +65,7 @@ int match(std::span<const char> data, size_t index, const TerminalSymbol& symbol
                     return -1;
                 }
 
-                const auto matches = data[index] >= symbol.first[0] && data[index] <= symbol.second[0];
-                std::cout << '[';
-                std::cout << symbol.first;
-                std::cout << '-';
-                std::cout << symbol.second;
-                std::cout << ']';
-
-                std::cout << "check: \"" << data[index] << "\" : " << matches << std::endl;
-
-                if (matches)
+                if (const auto matches = data[index] >= symbol.first[0] && data[index] <= symbol.second[0])
                 {
                     return 1;
                 }
@@ -99,8 +78,6 @@ int match(std::span<const char> data, size_t index, const TerminalSymbol& symbol
                 {
                     return -1;
                 }
-
-                std::cout << "regcheck: \"" << data[index] << std::endl;
 
                 if (std::cmatch match; std::regex_search(data.data() + index, data.data() + data.size(), match, symbol, std::regex_constants::match_continuous))
                 {
