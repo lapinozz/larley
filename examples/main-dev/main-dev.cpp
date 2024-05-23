@@ -11,7 +11,7 @@
 using magic_enum::iostream_operators::operator<<; // out-of-the-box ostream operators for enums.
 
 #include "larley/parser-types.hpp"
-#include "larley/grammar.hpp"
+#include "larley/printer.hpp"
 #include "larley/parser.hpp"
 #include "larley/string-grammar.hpp"
 #include "larley/tree-builder.hpp"
@@ -35,221 +35,6 @@ enum NonTerminals
 	Digits,
 	Whitespace
 };
-
-void printTree(const auto& tree, const auto& str)
-{
-	std::cout << "-------- Tree --------" << std::endl;
-
-	std::size_t index = 0;
-	const auto iter = [&](this const auto& iter, std::size_t depth = 0) -> void
-	{
-		const auto& edge = tree[index++];
-
-		for (int x = 0; x < depth; x++)
-		{
-			std::cout << "  ";
-		}
-
-		if (edge.rule)
-		{
-			std::cout << magic_enum::enum_name(edge.rule->product) << " ( " << edge.start << ", " << edge.end << ")\n";
-
-			for (int x = 0; x < edge.rule->symbols.size(); x++)
-			{
-				iter(depth + 1);
-			}
-		}
-		else
-		{
-            std::cout << '"' << str.substr(edge.start, edge.end - edge.start) << "\" ( " << edge.start << ", " << edge.end << ")\n";
-		}
-	};
-
-	iter();
-
-	std::cout << std::endl << std::endl;
-}
-
-void printError(const auto& parserError, const auto& inputs)
-{
-    std::cout << "-------- Error --------" << std::endl;
-
-	if (parserError.position >= inputs.src.size())
-	{
-        std::cout << "Unexpected end of input " << std::endl;
-	}
-	else
-	{
-        std::cout << "Unexcepected character '" << inputs.src[parserError.position] << "' " << std::endl;
-	}
-
-	std::size_t lineCount{};
-    std::size_t lastLineStart{};
-
-	for (std::size_t index{}; index < inputs.src.size() && index < parserError.position; index++)
-	{
-		if (inputs.src[index] == '\n')
-		{
-            lineCount++;
-            lastLineStart = index + 1;
-		}
-	}
-
-	const std::size_t column = parserError.position - lastLineStart;
-
-	std::cout << "Line " << lineCount << " column " << column << std::endl;
-    std::cout << std::string_view(inputs.src.data() + lastLineStart, column + 1) << std::endl;
-    std::cout << std::setw(column + 1) << '^' << std::endl;
-
-    std::cout << std::endl;
-
-    std::cout << "Expected one of the following:" << std::endl;
-
-    std::size_t maxSymbolLength{};
-    for (const auto& rule : inputs.grammar.rules)
-    {
-        const auto name = magic_enum::enum_name(rule.product);
-        maxSymbolLength = std::max(maxSymbolLength, name.size());
-    }
-
-	for (const auto& prediction : parserError.predictions)
-	{
-        std::cout << prediction.terminal << " from:" << std::endl;
-
-        for (const auto itemPtr : prediction.path)
-        {
-            const auto& item = *itemPtr;
-            const auto& rule = item.rule;
-            const auto name = magic_enum::enum_name(rule.product);
-            std::cout << "    " << std::setw(maxSymbolLength) << name;
-            std::cout << " ->";
-
-            for (std::size_t z = 0; z < rule.symbols.size(); z++)
-            {
-                const auto& symbol = rule.symbols[z];
-
-                if (item.dot == z)
-                {
-                    std::print("\u2022");
-                }
-                else
-                {
-                    std::cout << " ";
-                }
-
-                if (auto* NT = std::get_if<0>(&symbol))
-                {
-                    std::cout << magic_enum::enum_name(*NT);
-                }
-                else if (auto* LT = std::get_if<1>(&symbol))
-                {
-                    std::cout << *LT;
-                }
-            }
-
-            std::cout << " (" << item.start << ")" << std::endl;
-        }
-
-        std::cout << std::endl;
-	}
-}
-
-void printGrammar(const auto& grammar)
-{
-	std::cout << "-------- Grammar --------" << std::endl;
-
-	std::size_t maxSymbolLength{};
-	for (const auto& rule : grammar.rules)
-	{
-		const auto name = magic_enum::enum_name(rule.product);
-		maxSymbolLength = std::max(maxSymbolLength, name.size());
-	}
-
-	for (const auto& rule : grammar.rules)
-	{
-		const auto name = magic_enum::enum_name(rule.product);
-		std::cout << std::setw(maxSymbolLength) << name;
-		std::cout << " ->";
-
-		for (const auto& symbol : rule.symbols)
-		{
-			std::cout << " ";
-			if (auto* NT = std::get_if<0>(&symbol))
-			{
-				std::cout << magic_enum::enum_name(*NT);
-            }
-            else if (auto* LT = std::get_if<1>(&symbol))
-            {
-                std::cout << *LT;
-            }
-		}
-
-		std::cout << std::endl;
-	}
-	
-	std::cout << std::endl;
-}
-
-void printChart(const auto& inputs, const auto& parseResult)
-{
-	std::cout << "-------- Charts --------" << std::endl;
-
-	std::size_t maxSymbolLength{};
-	for (const auto& rule : inputs.grammar.rules)
-	{
-		const auto name = magic_enum::enum_name(rule.product);
-		maxSymbolLength = std::max(maxSymbolLength, name.size());
-	}
-
-	const auto& S = parseResult.S;
-	for (std::size_t x = 0; x < S.size(); x++)
-	{
-		std::cout << "Chart: " << x << std::endl;
-		const auto& set = S[x];
-		for (std::size_t y = 0; y < set.size(); y++)
-		{
-			const auto& item = set[y];
-			const auto& rule = item.rule;
-			const auto name = magic_enum::enum_name(rule.product);
-			std::cout << std::setw(maxSymbolLength) << name;
-			std::cout << " ->";
-   
-			for (std::size_t z = 0; z < rule.symbols.size(); z++)
-			{
-				const auto& symbol = rule.symbols[z];
-
-				if (item.dot == z)
-				{
-                    std::print("\u2022");
-				}
-				else
-				{
-					std::cout << " "; 
-				}
-
-				if (auto* NT = std::get_if<0>(&symbol))
-				{
-					std::cout << magic_enum::enum_name(*NT);
-				}
-                else if (auto* LT = std::get_if<1>(&symbol))
-				{
-					std::cout << *LT;
-				}
-			}
-
-			if (item.dot == rule.symbols.size())
-            {
-                std::print("\u2022");
-			}
-
-			std::cout << " (" << item.start << ")" << std::endl;
-		}
-
-		std::cout << std::endl;
-	}
-
-	std::cout << std::endl;
-}
 
 void testMaths()
 {
@@ -299,21 +84,22 @@ void testMaths()
 // clang-format on
 
 	//std::string str = " 1 + ( 2  / 3 ) \t* \t\t\t4.5 ";
-    std::string str = "1+1(";
+    std::string str = "1+1+1+1(";
 
 	const auto inputs = gb.makeInputs(str);
+    const auto printer = gb.makePrinter(inputs, [](const auto& nonTerminal){return magic_enum::enum_name(nonTerminal);});
 
-	printGrammar(inputs.grammar);
+	printGrammar(printer, inputs.grammar);
 
 	auto parsed = parse(inputs);
 	std::cout << "Match found: " << parsed.matchCount << std::endl;
-	printChart(inputs, parsed);
+    printChart(printer, inputs, parsed);
 
 	const auto error = makeParseError(inputs, parsed);
-    printError(error, inputs);
+    printError(printer, inputs, error);
 
 	auto tree = buildTree(inputs, parsed);
-	printTree(tree, str);
+    printTree(printer, inputs, tree);
 
 	auto result = applySemantics(inputs, tree);
 	std::cout << std::any_cast<float>(result) << std::endl;

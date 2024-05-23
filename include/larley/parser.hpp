@@ -4,6 +4,7 @@
 #include <variant>
 #include <vector>
 
+#include "grammar.hpp"
 #include "semantics.hpp"
 
 namespace larley
@@ -177,7 +178,7 @@ struct Parser
             result.completeMatch = true;
         }
 
-        for (const auto item : S.back())
+        for (const auto& item : S.back())
         {
             if (item.start == 0 && item.isComplete() && item.rule.product == grammar.startSymbol)
             {

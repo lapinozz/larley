@@ -98,9 +98,8 @@ int match(std::span<const char> data, size_t index, const TerminalSymbol& symbol
             }},
         symbol);
 }
-} // namespace StringGrammar
 
-std::ostream& operator<<(std::ostream& os, const StringGrammar::TerminalSymbol& symbol)
+void printTerminal(std::ostream& os, const StringGrammar::TerminalSymbol& symbol)
 {
     using namespace StringGrammar;
     std::visit(
@@ -121,7 +120,7 @@ std::ostream& operator<<(std::ostream& os, const StringGrammar::TerminalSymbol& 
                     }
                     first = false;
 
-                    os << '"' << symbol << '"';
+                    os << '"' << partial << '"';
                 }
 
                 os << ')';
@@ -135,9 +134,9 @@ std::ostream& operator<<(std::ostream& os, const StringGrammar::TerminalSymbol& 
                 os << '/' << symbol.pattern << '/';
             }},
         symbol);
-
-    return os;
 }
+} // namespace StringGrammar
+
 
 template <typename ParserTypes>
 struct StringGrammarBuilder
@@ -303,6 +302,26 @@ struct StringGrammarBuilder
             semantics
         };
     }
+
+    Printer<ParserTypes> makePrinter(const auto& inputs, const auto& nonTerminalToString)
+    {
+        Printer<ParserTypes> printer;
+
+        for (const auto& rule : inputs.grammar.rules)
+        {
+            printer.maximumNonTerminalLength = std::max(printer.maximumNonTerminalLength, nonTerminalToString(rule.product).size());
+        }
+
+        printer.printNonTerminal = [=](auto& stream, const auto& nonTerminal)
+        {
+            stream << nonTerminalToString(nonTerminal);
+        };
+
+        printer.printTerminal = StringGrammar::printTerminal;
+
+        return printer;
+    }
+    
 };
 
 } // namespace larley
