@@ -16,11 +16,21 @@ namespace StringGrammar
 
 using Str = std::string;
 
+struct SavedRegex : public std::regex
+{
+    SavedRegex(std::string pattern) : std::regex(pattern), pattern{ std::move(pattern) }
+    {
+
+    }
+
+    std::string pattern;
+};
+
 using LiteralTerminalSymbol = Str;
 
 using ChoiceTerminalSymbol = std::vector<LiteralTerminalSymbol>;
 using RangeTerminalSymbol = std::pair<LiteralTerminalSymbol, LiteralTerminalSymbol>;
-using RegexTerminalSymbol = std::regex;
+using RegexTerminalSymbol = SavedRegex;
 
 using TerminalSymbol = std::variant<LiteralTerminalSymbol, ChoiceTerminalSymbol, RangeTerminalSymbol, RegexTerminalSymbol>;
 
@@ -89,6 +99,45 @@ int match(std::span<const char> data, size_t index, const TerminalSymbol& symbol
         symbol);
 }
 } // namespace StringGrammar
+
+std::ostream& operator<<(std::ostream& os, const StringGrammar::TerminalSymbol& symbol)
+{
+    using namespace StringGrammar;
+    std::visit(
+        overloaded{
+            [&](const LiteralTerminalSymbol& symbol)
+            {
+                os << '"' << symbol << '"';
+            },
+            [&](const ChoiceTerminalSymbol& symbol)
+            {
+                os << '(';
+                bool first = true;
+                for (const auto& partial : symbol)
+                {
+                    if (!first)
+                    {
+                        os << " | ";
+                    }
+                    first = false;
+
+                    os << '"' << symbol << '"';
+                }
+
+                os << ')';
+            },
+            [&](const RangeTerminalSymbol& symbol)
+            {
+                os << '[' << symbol.first[0] << '-' << symbol.second[0] << ']';
+            },
+            [&](const RegexTerminalSymbol& symbol)
+            {
+                os << '/' << symbol.pattern << '/';
+            }},
+        symbol);
+
+    return os;
+}
 
 template <typename ParserTypes>
 struct StringGrammarBuilder

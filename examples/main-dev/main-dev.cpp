@@ -16,6 +16,7 @@ using magic_enum::iostream_operators::operator<<; // out-of-the-box ostream oper
 #include "larley/string-grammar.hpp"
 #include "larley/tree-builder.hpp"
 #include "larley/apply-semantics.hpp"
+#include "larley/parsing-error.hpp"
 
 using namespace larley;
 
@@ -60,13 +61,97 @@ void printTree(const auto& tree, const auto& str)
 		}
 		else
 		{
-			std::cout << str.substr(edge.start, edge.end - edge.start) << " ( " << edge.start << ", " << edge.end << ")\n";
+            std::cout << '"' << str.substr(edge.start, edge.end - edge.start) << "\" ( " << edge.start << ", " << edge.end << ")\n";
 		}
 	};
 
 	iter();
 
 	std::cout << std::endl << std::endl;
+}
+
+void printError(const auto& parserError, const auto& inputs)
+{
+    std::cout << "-------- Error --------" << std::endl;
+
+	if (parserError.position >= inputs.src.size())
+	{
+        std::cout << "Unexpected end of input " << std::endl;
+	}
+	else
+	{
+        std::cout << "Unexcepected character '" << inputs.src[parserError.position] << "' " << std::endl;
+	}
+
+	std::size_t lineCount{};
+    std::size_t lastLineStart{};
+
+	for (std::size_t index{}; index < inputs.src.size() && index < parserError.position; index++)
+	{
+		if (inputs.src[index] == '\n')
+		{
+            lineCount++;
+            lastLineStart = index + 1;
+		}
+	}
+
+	const std::size_t column = parserError.position - lastLineStart;
+
+	std::cout << "Line " << lineCount << " column " << column << std::endl;
+    std::cout << std::string_view(inputs.src.data() + lastLineStart, column + 1) << std::endl;
+    std::cout << std::setw(column + 1) << '^' << std::endl;
+
+    std::cout << std::endl;
+
+    std::cout << "Expected one of the following:" << std::endl;
+
+    std::size_t maxSymbolLength{};
+    for (const auto& rule : inputs.grammar.rules)
+    {
+        const auto name = magic_enum::enum_name(rule.product);
+        maxSymbolLength = std::max(maxSymbolLength, name.size());
+    }
+
+	for (const auto& prediction : parserError.predictions)
+	{
+        std::cout << prediction.terminal << " from:" << std::endl;
+
+        for (const auto itemPtr : prediction.path)
+        {
+            const auto& item = *itemPtr;
+            const auto& rule = item.rule;
+            const auto name = magic_enum::enum_name(rule.product);
+            std::cout << "    " << std::setw(maxSymbolLength) << name;
+            std::cout << " ->";
+
+            for (std::size_t z = 0; z < rule.symbols.size(); z++)
+            {
+                const auto& symbol = rule.symbols[z];
+
+                if (item.dot == z)
+                {
+                    std::print("\u2022");
+                }
+                else
+                {
+                    std::cout << " ";
+                }
+
+                if (auto* NT = std::get_if<0>(&symbol))
+                {
+                    std::cout << magic_enum::enum_name(*NT);
+                }
+                else if (auto* LT = std::get_if<1>(&symbol))
+                {
+                    std::cout << *LT;
+                }
+            }
+
+            std::cout << " (" << item.start << ")" << std::endl;
+        }
+
+        std::cout << std::endl;
+	}
 }
 
 void printGrammar(const auto& grammar)
@@ -92,11 +177,11 @@ void printGrammar(const auto& grammar)
 			if (auto* NT = std::get_if<0>(&symbol))
 			{
 				std::cout << magic_enum::enum_name(*NT);
-			}
-			else
-			{
-				std::cout << "\"\"";
-			}
+            }
+            else if (auto* LT = std::get_if<1>(&symbol))
+            {
+                std::cout << *LT;
+            }
 		}
 
 		std::cout << std::endl;
@@ -146,9 +231,9 @@ void printChart(const auto& inputs, const auto& parseResult)
 				{
 					std::cout << magic_enum::enum_name(*NT);
 				}
-				else
+                else if (auto* LT = std::get_if<1>(&symbol))
 				{
-					std::cout << "\"\"";
+					std::cout << *LT;
 				}
 			}
 
@@ -191,7 +276,8 @@ void testMaths()
 	gb(Digit)   >> Range{"0", "9"}    
 	*/
 
-	GB gb{Sum, Whitespace};
+	//GB gb{Sum, Whitespace};
+	GB gb{Sum};
 	gb(Whitespace);
 	gb(Whitespace) >> Regex{"\\s+"};
 	gb(Sum)     >> Sum & "+" & Product          | [](const auto& vals) { return vals[0].as<float>() + vals[2].as<float>(); };
@@ -202,17 +288,18 @@ void testMaths()
 	gb(Product) >> Factor;
 	gb(Factor)  >> "(" & Sum & ")"              | [](const auto& vals) { return vals[1]; };
 	gb(Factor)  >> Digit;
-	gb(Digit)   >> Regex{"[0-9]+(\\.[0-9]+)?"}   | [](const auto& vals)
-	{ 
-		auto src = vals[0].as<Src>();
-		float result;
-		std::from_chars(src.data(), src.data() + src.size(), result);
-		return result;
-	};
+	gb(Digit)   >> Regex{"[0-9]+(\\.[0-9]+)?"}  | [](const auto& vals)
+		{ 
+			auto src = vals[0].as<Src>();
+			float result;
+			std::from_chars(src.data(), src.data() + src.size(), result);
+			return result;
+		};
 	
 // clang-format on
 
-	std::string str = " 1 + ( 2  / 3 ) \t* \t\t\t4.5 ";
+	//std::string str = " 1 + ( 2  / 3 ) \t* \t\t\t4.5 ";
+    std::string str = "1+1(";
 
 	const auto inputs = gb.makeInputs(str);
 
@@ -221,6 +308,9 @@ void testMaths()
 	auto parsed = parse(inputs);
 	std::cout << "Match found: " << parsed.matchCount << std::endl;
 	printChart(inputs, parsed);
+
+	const auto error = makeParseError(inputs, parsed);
+    printError(error, inputs);
 
 	auto tree = buildTree(inputs, parsed);
 	printTree(tree, str);

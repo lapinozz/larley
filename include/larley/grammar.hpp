@@ -4,6 +4,7 @@
 #include <unordered_set>
 #include <variant>
 #include <vector>
+#include <cstdint>
 
 namespace larley
 {
