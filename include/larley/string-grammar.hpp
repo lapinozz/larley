@@ -141,8 +141,8 @@ void printTerminal(std::ostream& os, const StringGrammar::TerminalSymbol& symbol
 template <typename ParserTypes>
 struct StringGrammarBuilder
 {
-    using NT = ParserTypes::NonTerminal;
-    using LT = ParserTypes::Terminal;
+    using NT = typename ParserTypes::NonTerminal;
+    using LT = typename ParserTypes::Terminal;
 
     NT startSymbol;
     std::optional<NT> whitespaceSymbol;
@@ -303,7 +303,7 @@ struct StringGrammarBuilder
         };
     }
 
-    Printer<ParserTypes> makePrinter(const auto& inputs, const auto& nonTerminalToString)
+    Printer<ParserTypes> makePrinter(const auto& inputs, const std::function<std::string(const typename ParserTypes::NonTerminal&)>& nonTerminalToString)
     {
         Printer<ParserTypes> printer;
 

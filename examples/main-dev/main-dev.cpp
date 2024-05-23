@@ -25,19 +25,25 @@ using namespace larley;
 //	Factor  -> '(' Sum ')' | Number
 //	Number  -> [0-9] Number | [0-9]
 
-enum NonTerminals
+template<typename T>
+std::string enumToString(T value)
 {
-	Sum,
-	Product,
-	Factor,
-	Number,
-	Digit,
-	Digits,
-	Whitespace
-};
+    return std::string{magic_enum::enum_name(value)};
+}
 
 void testMaths()
 {
+    enum NonTerminals
+    {
+        Sum,
+        Product,
+        Factor,
+        Number,
+        Digit,
+        Digits,
+        Whitespace
+    };
+
 	using PT = ParserTypes<NonTerminals, StringGrammar::TerminalSymbol>;
 
 	using GB = StringGrammarBuilder<PT>;
@@ -87,7 +93,7 @@ void testMaths()
     std::string str = "1+1+1+1(";
 
 	const auto inputs = gb.makeInputs(str);
-    const auto printer = gb.makePrinter(inputs, [](const auto& nonTerminal){return magic_enum::enum_name(nonTerminal);});
+    const auto printer = gb.makePrinter(inputs, &enumToString<NonTerminals>);
 
 	printGrammar(printer, inputs.grammar);
 
@@ -105,76 +111,79 @@ void testMaths()
 	std::cout << std::any_cast<float>(result) << std::endl;
 }
 
-/*
-enum IfGrammar
-{
-	Block,
-	If
-};
-
 void testPriority()
 {
-	using GB = StringGrammarBuilder<IfGrammar, StringGrammar::TerminalSymbol>;
+    enum IfGrammar
+    {
+        Block,
+        If
+    };
+	
+	using PT = ParserTypes<IfGrammar, StringGrammar::TerminalSymbol>;
+
+	using GB = StringGrammarBuilder<PT>;
 
 	using RuleBuilder = typename GB::RuleBuilder;
 	using Range = typename GB::Range;
 	using Choice = typename GB::Choice;
 
-	GB gb1;
+	GB gb1(Block);
 	gb1(Block) >> "{}";
 	gb1(Block) >> If;
 	gb1(If) >> "if" & Block;
 	gb1(If) >> "if" & Block & "else" & Block;
 
-	Parser p1{gb1.getGrammar()};
 
-	GB gb2;
+	GB gb2(Block);
 	gb2(Block) >> "{}";
 	gb2(Block) >> If;
 	gb2(If) >> "if" & Block & "else" & Block;
 	gb2(If) >> "if" & Block;
 
-	Parser p2{gb2.getGrammar()};
-
 	std::string str = "ifif{}else{}";
-	auto span = std::span<char>{str.begin(), str.end()};
 
-	p1.parse(span, StringGrammar::match, Block);
-	auto tree1 = p1.buildTree(span, StringGrammar::match, Block);
+	const auto inputs1{gb1.makeInputs(str)};
+    const auto inputs2{gb2.makeInputs(str)};
 
-	p2.parse(span, StringGrammar::match, Block);
-	auto tree2 = p2.buildTree(span, StringGrammar::match, Block);
+    const auto printer1{gb1.makePrinter(inputs1, enumToString<IfGrammar>)};
+    const auto printer2{gb2.makePrinter(inputs2, enumToString<IfGrammar>)};
 
-	printTree(tree1, str);
-	printTree(tree2, str);
+	const auto parsed1 = parse(inputs1);
+    const auto parsed2 = parse(inputs2);
+    
+	auto tree1 = buildTree(inputs1, parsed1);
+    auto tree2 = buildTree(inputs2, parsed2);
+
+	printTree(printer1, inputs1, tree1);
+    printTree(printer2, inputs2, tree2);
 }
-
-enum BlowoutGrammar
-{
-	A,
-};
 
 void testBlowout()
 {
-	using GB = StringGrammarBuilder<BlowoutGrammar, StringGrammar::TerminalSymbol>;
+    enum BlowoutGrammar
+    {
+        A,
+    };
+	
+	using PT = ParserTypes<BlowoutGrammar, StringGrammar::TerminalSymbol>;
+
+	using GB = StringGrammarBuilder<PT>;
 
 	using RuleBuilder = typename GB::RuleBuilder;
 	using Range = typename GB::Range;
 	using Choice = typename GB::Choice;
 
-	GB gb;
+	GB gb(A);
 	gb(A) >> A;
 	gb(A);
 
-	Parser p{gb.getGrammar()};
-
 	std::string str = "";
-	auto span = std::span<char>{str.begin(), str.end()};
+    const auto inputs = gb.makeInputs(str);
 
-	p.parse(span, StringGrammar::match, A);
-	auto tree = p.buildTree(span, StringGrammar::match, A);
+	const auto parsed = parse(inputs);
+	const auto tree = buildTree(inputs, parsed);
 
-	printTree(tree, str);
+	printTree(gb.makePrinter(inputs, enumToString<BlowoutGrammar>), inputs, tree);
 }
 
 void testEmptyRuleGrammar()
@@ -186,14 +195,16 @@ void testEmptyRuleGrammar()
 		S,
 		T
 	};
+	
+	using PT = ParserTypes<EmptyGrammar, StringGrammar::TerminalSymbol>;
 
-	using GB = StringGrammarBuilder<EmptyGrammar, StringGrammar::TerminalSymbol>;
+	using GB = StringGrammarBuilder<PT>;
 
 	using RuleBuilder = typename GB::RuleBuilder;
 	using Range = typename GB::Range;
 	using Choice = typename GB::Choice;
 
-	GB gb;
+	GB gb(T);
 	gb(A); // Empty
 	// gb(A) >> B;
 	gb(B) >> A;
@@ -201,25 +212,24 @@ void testEmptyRuleGrammar()
 	gb(T); // Empty
 	gb(T) >> T& A & S & B;
 
-	Parser p{gb.getGrammar()};
 	std::string str = "S";
-	p.parse(std::span<char>{str.begin(), str.end()}, StringGrammar::match, T);
-	printTree(p.buildTree(std::span<char>{str.begin(), str.end()}, StringGrammar::match, T), str);
+    const auto inputs = gb.makeInputs(str);
+
+    const auto parsed = parse(inputs);
+    const auto tree = buildTree(inputs, parsed);
+
+    printTree(gb.makePrinter(inputs, enumToString<EmptyGrammar>), inputs, tree);
 }
-*/
 
 int main()
 {
-    //SetConsoleCP(65001);
-    //SetConsoleOutputCP(65001);
-
-	//testEmptyRuleGrammar();
-	//testPriority();
+	testEmptyRuleGrammar();
+	testPriority();
 	testMaths();
 
 	try
 	{
-		//testBlowout();
+		testBlowout();
 	}
 	catch (...)
 	{
