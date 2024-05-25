@@ -4,6 +4,8 @@
 #include <functional>
 #include <variant>
 
+#include "utils.hpp"
+
 namespace larley
 {
 
@@ -42,14 +44,13 @@ void printTree(const auto& printer, const auto& inputs, const auto& tree)
         }
         else
         {
-            std::cout << '"' << std::string_view(inputs.src.data() + edge.start, inputs.src.data() + edge.end) << "\" ( " << edge.start << ", " << edge.end << ")\n";
+            std::cout << '"' << printUnescaped({inputs.src.data() + edge.start, inputs.src.data() + edge.end}) << "\" ( " << edge.start << ", " << edge.end << ")\n";
         }
     };
 
     iter();
 
-    std::cout << std::endl
-              << std::endl;
+    std::cout << std::endl << std::endl;
 }
 
 void printError(const auto& printer, const auto& inputs, const auto& parserError)
@@ -62,7 +63,7 @@ void printError(const auto& printer, const auto& inputs, const auto& parserError
     }
     else
     {
-        std::cout << "Unexcepected character '" << inputs.src[parserError.position] << "' " << std::endl;
+        std::cout << "Unexcepected character '" << printUnescaped({inputs.src.data() + parserError.position, 1}) << "' " << std::endl;
     }
 
     std::size_t lineCount{};
@@ -80,7 +81,7 @@ void printError(const auto& printer, const auto& inputs, const auto& parserError
     const std::size_t column = parserError.position - lastLineStart;
 
     std::cout << "Line " << lineCount << " column " << column << std::endl;
-    std::cout << std::string_view(inputs.src.data() + lastLineStart, column + 1) << std::endl;
+    std::cout << printUnescaped({inputs.src.data() + lastLineStart, column + 1}) << std::endl;
     std::cout << std::setw(column + 1) << '^' << std::endl;
 
     std::cout << std::endl;

@@ -5,8 +5,10 @@
 #include <string_view>
 #include <variant>
 #include <vector>
+#include <optional>
 
 #include "semantics.hpp"
+#include "utils.hpp"
 
 namespace larley
 {
@@ -106,7 +108,9 @@ void printTerminal(std::ostream& os, const StringGrammar::TerminalSymbol& symbol
         overloaded{
             [&](const LiteralTerminalSymbol& symbol)
             {
-                os << '"' << symbol << '"';
+                os << '"';
+                printUnescaped(symbol, os);
+                os << '"';
             },
             [&](const ChoiceTerminalSymbol& symbol)
             {
@@ -120,14 +124,20 @@ void printTerminal(std::ostream& os, const StringGrammar::TerminalSymbol& symbol
                     }
                     first = false;
 
-                    os << '"' << partial << '"';
+                    os << '"';
+                    printUnescaped(partial, os);
+                    os << '"';
                 }
 
                 os << ')';
             },
             [&](const RangeTerminalSymbol& symbol)
             {
-                os << '[' << symbol.first[0] << '-' << symbol.second[0] << ']';
+                os << '[';
+                printUnescaped(symbol.first, os);
+                os << '-';
+                printUnescaped(symbol.second, os);
+                os << ']';
             },
             [&](const RegexTerminalSymbol& symbol)
             {
