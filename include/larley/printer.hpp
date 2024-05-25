@@ -44,7 +44,9 @@ void printTree(const auto& printer, const auto& inputs, const auto& tree)
         }
         else
         {
-            std::cout << '"' << printUnescaped({inputs.src.data() + edge.start, inputs.src.data() + edge.end}) << "\" ( " << edge.start << ", " << edge.end << ")\n";
+            std::cout << '"';
+            printUnescaped({inputs.src.data() + edge.start, inputs.src.data() + edge.end});
+            std::cout << "\" ( " << edge.start << ", " << edge.end << ")\n";
         }
     };
 
@@ -63,7 +65,9 @@ void printError(const auto& printer, const auto& inputs, const auto& parserError
     }
     else
     {
-        std::cout << "Unexcepected character '" << printUnescaped({inputs.src.data() + parserError.position, 1}) << "' " << std::endl;
+        std::cout << "Unexcepected character '";
+        printUnescaped({inputs.src.data() + parserError.position, 1});
+        std::cout << "' " << std::endl;
     }
 
     std::size_t lineCount{};
@@ -81,8 +85,8 @@ void printError(const auto& printer, const auto& inputs, const auto& parserError
     const std::size_t column = parserError.position - lastLineStart;
 
     std::cout << "Line " << lineCount << " column " << column << std::endl;
-    std::cout << printUnescaped({inputs.src.data() + lastLineStart, column + 1}) << std::endl;
-    std::cout << std::setw(column + 1) << '^' << std::endl;
+    printUnescaped({inputs.src.data() + lastLineStart, column + 1});
+    std::cout << std::endl << std::setw(column + 1) << '^' << std::endl;
 
     std::cout << std::endl;
 

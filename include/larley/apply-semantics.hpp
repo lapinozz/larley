@@ -1,6 +1,7 @@
 #pragma once
 
 #include "parser.hpp"
+#include "grammar.hpp"
 #include "tree-builder.hpp"
 
 namespace larley
@@ -15,38 +16,37 @@ auto applySemantics(const ParserInputs<ParserTypes>& inputs, const typename Tree
     std::size_t index = 0;
     const auto iterate = [&](const auto& self) -> SemanticValue
     {
+        SemanticValue value;
+
         const auto& edge = tree[index++];
         if (edge.rule)
         {
             SemanticValues values;
             for (int x = 0; x < edge.rule->symbols.size(); x++)
             {
-                auto value = self(self);
-
-                if (!edge.rule->isIgnored(x))
+                if (!edge.rule->isDiscarded(x))
                 {
-                    values.push_back(std::move(value));
+                    values.push_back(self(self));
+                }
+                else
+                {
+                    self(self);
                 }
             }
 
             const auto& action = inputs.semantics.actions[edge.rule->id];
             if (action)
             {
-                return action(values);
+                value = action(values);
             }
             else if (values.size() > 0)
             {
-                return values[0];
-            }
-            else
-            {
-                return {};
+                value = std::move(values[0]);
             }
         }
-        else
-        {
-            return inputs.src.subspan(edge.start, edge.end - edge.start);
-        }
+
+        value.src = inputs.src.subspan(edge.start, edge.end - edge.start);
+        return value;
     };
 
     return iterate(iterate);

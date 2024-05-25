@@ -5,10 +5,7 @@
 #include <iomanip>
 #include <charconv>
 
-#include "magic_enum/magic_enum.hpp"
-#include "magic_enum/magic_enum_flags.hpp"
-#include "magic_enum/magic_enum_iostream.hpp"
-using magic_enum::iostream_operators::operator<<; // out-of-the-box ostream operators for enums.
+#include "../utils.hpp"
 
 #include "larley/parser-types.hpp"
 #include "larley/printer.hpp"
@@ -24,12 +21,6 @@ using namespace larley;
 //	Product -> Product [*/] Factor | Factor
 //	Factor  -> '(' Sum ')' | Number
 //	Number  -> [0-9] Number | [0-9]
-
-template<typename T>
-std::string enumToString(T value)
-{
-    return std::string{magic_enum::enum_name(value)};
-}
 
 void testMaths()
 {
@@ -71,17 +62,17 @@ void testMaths()
 	GB gb{Sum};
 	gb(Whitespace);
 	gb(Whitespace) >> Regex{"\\s+"};
-	gb(Sum)     >> Sum & "+" & Product          | [](const auto& vals) { return vals[0].as<float>() + vals[2].as<float>(); };
-	gb(Sum)     >> Sum & "-" & Product          | [](const auto& vals) { return vals[0].as<float>() - vals[2].as<float>(); };
+	gb(Sum)     >> Sum & "+" & Product          | [](auto& vals) { return vals[0].as<float>() + vals[2].as<float>(); };
+	gb(Sum)     >> Sum & "-" & Product          | [](auto& vals) { return vals[0].as<float>() - vals[2].as<float>(); };
 	gb(Sum)     >> Product;
-	gb(Product) >> Product & "*" & Factor       | [](const auto& vals) { return vals[0].as<float>() * vals[2].as<float>(); };
-	gb(Product) >> Product & "/" & Factor       | [](const auto& vals) { return vals[0].as<float>() / vals[2].as<float>(); };
+	gb(Product) >> Product & "*" & Factor       | [](auto& vals) { return vals[0].as<float>() * vals[2].as<float>(); };
+	gb(Product) >> Product & "/" & Factor       | [](auto& vals) { return vals[0].as<float>() / vals[2].as<float>(); };
 	gb(Product) >> Factor;
-	gb(Factor)  >> "(" & Sum & ")"              | [](const auto& vals) { return vals[1]; };
+	gb(Factor)  >> "(" & Sum & ")"              | [](auto& vals) { return vals[1]; };
 	gb(Factor)  >> Digit;
-	gb(Digit)   >> Regex{"[0-9]+(\\.[0-9]+)?"}  | [](const auto& vals)
+	gb(Digit)   >> Regex{"[0-9]+(\\.[0-9]+)?"}  | [](auto& vals)
 		{ 
-			auto src = vals[0].as<Src>();
+			auto src = vals[0].src;
 			float result;
 			std::from_chars(src.data(), src.data() + src.size(), result);
 			return result;
@@ -90,7 +81,7 @@ void testMaths()
 // clang-format on
 
 	//std::string str = " 1 + ( 2  / 3 ) \t* \t\t\t4.5 ";
-    std::string str = "1+1+1+1(";
+    std::string str = "1+1+1+1";
 
 	const auto inputs = gb.makeInputs(str);
     const auto printer = gb.makePrinter(inputs, &enumToString<NonTerminals>);

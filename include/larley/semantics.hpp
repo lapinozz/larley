@@ -34,21 +34,23 @@ class Semantics
     {
         using any::any;
 
+        Src src;
+
         template <typename T>
-        T as()
+        T& as()
         {
-            return std::any_cast<T>(*this);
+            return std::any_cast<T&>(*this);
         }
 
         template <typename T>
-        T as() const
+        const T& as() const
         {
             return std::any_cast<T>(*this);
         }
     };
 
     using SemanticValues = std::vector<SemanticValue>;
-    using SemanticAction = OptionalCtxFunction_t<Ctx, SemanticValue(const SemanticValues&)>;
+    using SemanticAction = OptionalCtxFunction_t<Ctx, SemanticValue(SemanticValues&)>;
 
     std::vector<SemanticAction> actions;
 
