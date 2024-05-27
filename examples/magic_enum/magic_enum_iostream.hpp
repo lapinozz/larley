@@ -49,16 +49,12 @@ std::basic_ostream<Char, Traits>& operator<<(std::basic_ostream<Char, Traits>& o
   if constexpr (detail::supported<D>::value) {
     if constexpr (detail::subtype_v<D> == detail::enum_subtype::flags) {
       if (const auto name = enum_flags_name<D>(value); !name.empty()) {
-        for (const auto c : name) {
-          os.put(c);
-        }
+        os << name;
         return os;
       }
     } else {
       if (const auto name = enum_name<D>(value); !name.empty()) {
-        for (const auto c : name) {
-          os.put(c);
-        }
+        os << name;
         return os;
       }
     }
