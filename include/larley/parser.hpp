@@ -14,21 +14,10 @@
 namespace larley
 {
 
-template <typename T>
-struct CtxHolder
-{
-    T& ctx;
-};
-
-template <>
-struct CtxHolder<void>
-{
-};
-
 template <typename ParserTypes>
-//struct Parser : CtxHolder<typename ParserTypes::Ctx>
 struct Parser
 {
+    using Ctx = typename ParserTypes::Ctx;
     using Src = typename ParserTypes::Src;
     using SemanticValue = typename Semantics<ParserTypes>::SemanticValue;
 
@@ -36,6 +25,7 @@ struct Parser
     ParserTypes::Matcher matcher;
     Semantics<ParserTypes> semantics;
 
+    Ctx* ctx{};
     Src src;
 
     std::optional<ParseChart<ParserTypes>> chart;
@@ -59,7 +49,7 @@ struct Parser
     void parseSemantics()
     {
         assert(tree && "tree is not set");
-        result = ::parseSemantics(semantics, *tree, src);
+        result = ::parseSemantics(semantics, *tree, src, ctx);
     }
 
     void parseError()
@@ -98,8 +88,9 @@ struct Parser
         ::printError(grammar, *error, src);
     }
 
-    SemanticValue parse(Src source, bool acceptPartialMatch = false)
+    SemanticValue parse(Src source, Ctx* context = nullptr, bool acceptPartialMatch = false)
     {
+        ctx = context;
         src = source;
 
         chart = std::nullopt;

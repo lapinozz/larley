@@ -272,7 +272,7 @@ struct StringGrammarBuilder
 
         void operator|(Semantics<ParserTypes>::SemanticAction semanticAction)
         {
-            action = semanticAction;
+            action = std::move(semanticAction);
         }
 
         ~RuleBuilder()

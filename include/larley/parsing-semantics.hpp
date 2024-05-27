@@ -8,22 +8,6 @@
 
 namespace larley
 {
-template <typename Ctx, typename T>
-struct OptionalCtxFunction;
-
-template <typename Ctx, typename Ret, typename... Args>
-struct OptionalCtxFunction<Ctx, Ret(Args... x)>
-{
-    using type = std::function<Ret(Args..., Ctx&)>;
-};
-template <typename Ret, typename... Args>
-struct OptionalCtxFunction<void, Ret(Args...)>
-{
-    using type = std::function<Ret(Args...)>;
-};
-
-template <typename Ctx, typename T>
-using OptionalCtxFunction_t = OptionalCtxFunction<Ctx, T>::type;
 
 template <typename ParserTypes>
 class Semantics
@@ -52,7 +36,31 @@ class Semantics
     };
 
     using SemanticValues = std::vector<SemanticValue>;
-    using SemanticAction = OptionalCtxFunction_t<Ctx, SemanticValue(SemanticValues&)>;
+    struct SemanticAction : std::function<SemanticValue(SemanticValues&, Ctx*)>
+    {
+        using std::function<SemanticValue(SemanticValues&, Ctx*)>::function;
+
+        template <typename F>
+        requires std::invocable<F, SemanticValues&> && !std::is_void_v<std::invoke_result_t<F, SemanticValues&>>
+        SemanticAction(F f) : std::function<SemanticValue(SemanticValues&, Ctx*)>{[f](SemanticValues& values, Ctx*){return f(values);}}
+        {
+
+        }
+
+        template <typename F>
+        requires std::invocable<F, SemanticValues&> && std::is_void_v<std::invoke_result_t<F, SemanticValues&>>
+        SemanticAction(F f) : std::function<SemanticValue(SemanticValues&, Ctx*)>{[f](SemanticValues& values, Ctx*) -> SemanticValue {f(values); return {};}}
+        {
+
+        }
+
+        template <typename F>
+        requires std::invocable<F, SemanticValues&, Ctx*> && std::is_void_v<std::invoke_result_t<F, SemanticValues&, Ctx*>>
+        SemanticAction(F f) : std::function<SemanticValue(SemanticValues&, Ctx*)>{[f](SemanticValues& values, Ctx* ctx) -> SemanticValue {f(values, ctx); return {};}}
+        {
+
+        }
+    };
 
     std::vector<SemanticAction> actions;
 
@@ -63,16 +71,12 @@ class Semantics
             actions.resize(id + 1);
         }
 
-        actions[id] = action;
+        actions[id] = std::move(action);
     }
-
-    using TerminalHandler = OptionalCtxFunction_t<Ctx, SemanticValue(Src)>;
-
-    TerminalHandler terminalHandler;
 };
 
 template <typename ParserTypes>
-auto parseSemantics(const Semantics<ParserTypes>& semantics, const ParseTree<ParserTypes> tree, typename ParserTypes::Src src)
+auto parseSemantics(const Semantics<ParserTypes>& semantics, const ParseTree<ParserTypes> tree, typename ParserTypes::Src src, typename ParserTypes::Ctx* ctx)
 {
     using SemanticValue = Semantics<ParserTypes>::SemanticValue;
     using SemanticValues = Semantics<ParserTypes>::SemanticValues;
@@ -101,7 +105,7 @@ auto parseSemantics(const Semantics<ParserTypes>& semantics, const ParseTree<Par
             const auto& action = semantics.actions[edge.rule->id];
             if (action)
             {
-                value = action(values);
+                value = action(values, ctx);
             }
             else if (values.size() > 0)
             {
