@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "parser.hpp"
+#include "parsing-chart.hpp"
 
 namespace larley
 {

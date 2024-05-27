@@ -3,12 +3,12 @@
 #include <optional>
 
 #include "grammar.hpp"
-#include "semantics.hpp"
-#include "printer.hpp"
-#include "parsing-chart.hpp"
-#include "parsing-tree.hpp"
 #include "parser-types.hpp"
+#include "parsing-chart.hpp"
 #include "parsing-error.hpp"
+#include "parsing-semantics.hpp"
+#include "parsing-tree.hpp"
+#include "printer.hpp"
 #include "utils.hpp"
 
 namespace larley
