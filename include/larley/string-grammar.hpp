@@ -6,8 +6,9 @@
 #include <variant>
 #include <vector>
 #include <optional>
+#include <sstream>
 
-#include "semantics.hpp"
+#include "parser.hpp"
 #include "utils.hpp"
 
 namespace larley
@@ -36,18 +37,18 @@ using RegexTerminalSymbol = SavedRegex;
 
 using TerminalSymbol = std::variant<LiteralTerminalSymbol, ChoiceTerminalSymbol, RangeTerminalSymbol, RegexTerminalSymbol>;
 
-int match(std::span<const char> data, size_t index, const TerminalSymbol& symbol)
+int match(std::string_view src, size_t index, const TerminalSymbol& symbol)
 {
     return std::visit(
         overloaded{
             [&](const LiteralTerminalSymbol& symbol) -> int
             {
-                if (index + symbol.size() > data.size())
+                if (index + symbol.size() > src.size())
                 {
                     return -1;
                 }
 
-                const std::string_view subsrc(data.begin() + index, data.begin() + index + symbol.size());
+                const std::string_view subsrc(src.begin() + index, src.begin() + index + symbol.size());
                 const auto matches = subsrc == symbol;
 
                 return matches ? static_cast<int>(subsrc.size()) : -1;
@@ -56,12 +57,12 @@ int match(std::span<const char> data, size_t index, const TerminalSymbol& symbol
             {
                 for (const auto& partial : symbol)
                 {
-                    if (index + partial.size() >= data.size())
+                    if (index + partial.size() >= src.size())
                     {
                         continue;
                     }
 
-                    const std::string_view subsrc(data.begin() + index, data.begin() + index + partial.size());
+                    const std::string_view subsrc(src.begin() + index, src.begin() + index + partial.size());
                     if (const auto matches = subsrc == partial)
                     {
                         return static_cast<int>(subsrc.size());
@@ -72,12 +73,12 @@ int match(std::span<const char> data, size_t index, const TerminalSymbol& symbol
             },
             [&](const RangeTerminalSymbol& symbol) -> int
             {
-                if (index >= data.size())
+                if (index >= src.size())
                 {
                     return -1;
                 }
 
-                if (const auto matches = data[index] >= symbol.first[0] && data[index] <= symbol.second[0])
+                if (const auto matches = src[index] >= symbol.first[0] && src[index] <= symbol.second[0])
                 {
                     return 1;
                 }
@@ -86,12 +87,12 @@ int match(std::span<const char> data, size_t index, const TerminalSymbol& symbol
             },
             [&](const RegexTerminalSymbol& symbol) -> int
             {
-                if (index >= data.size())
+                if (index >= src.size())
                 {
                     return -1;
                 }
 
-                if (std::cmatch match; std::regex_search(data.data() + index, data.data() + data.size(), match, symbol, std::regex_constants::match_continuous))
+                if (std::cmatch match; std::regex_search(src.data() + index, src.data() + src.size(), match, symbol, std::regex_constants::match_continuous))
                 {
                     return match[0].length();
                 }
@@ -101,7 +102,7 @@ int match(std::span<const char> data, size_t index, const TerminalSymbol& symbol
         symbol);
 }
 
-void printTerminal(std::ostream& os, const StringGrammar::TerminalSymbol& symbol)
+std::ostream& operator<<(std::ostream& os, const StringGrammar::TerminalSymbol& symbol)
 {
     using namespace StringGrammar;
     std::visit(
@@ -144,7 +145,10 @@ void printTerminal(std::ostream& os, const StringGrammar::TerminalSymbol& symbol
                 os << '/' << symbol.pattern << '/';
             }},
         symbol);
+
+    return os;
 }
+
 } // namespace StringGrammar
 
 
@@ -302,36 +306,15 @@ struct StringGrammarBuilder
         return semantics;
     }
 
-    ParserInputs<ParserTypes> makeInputs(const Str& str) const
+    Parser<ParserTypes> makeParser() const
     {
         return 
         {
-            {str.begin(), str.size()},
             Grammar<ParserTypes>{startSymbol, rules},
             &StringGrammar::match,
-            semantics
+            semantics,
         };
     }
-
-    Printer<ParserTypes> makePrinter(const auto& inputs, const std::function<std::string(const typename ParserTypes::NonTerminal&)>& nonTerminalToString)
-    {
-        Printer<ParserTypes> printer;
-
-        for (const auto& rule : inputs.grammar.rules)
-        {
-            printer.maximumNonTerminalLength = std::max(printer.maximumNonTerminalLength, nonTerminalToString(rule.product).size());
-        }
-
-        printer.printNonTerminal = [=](auto& stream, const auto& nonTerminal)
-        {
-            stream << nonTerminalToString(nonTerminal);
-        };
-
-        printer.printTerminal = StringGrammar::printTerminal;
-
-        return printer;
-    }
-    
 };
 
 } // namespace larley

@@ -51,4 +51,10 @@ void printUnescaped(std::string_view string, std::ostream& os = std::cout)
     }
 }
 
+template <class... Ts>
+struct overloaded : Ts...
+{
+    using Ts::operator()...;
+};
+
 } // namespace larley

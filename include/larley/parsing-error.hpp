@@ -14,7 +14,7 @@ struct ParseError
     {
         const typename ParserTypes::Terminal& terminal;
 
-        using Path = std::vector<const typename Parser<ParserTypes>::Item*>;
+        using Path = std::vector<const Item<ParserTypes>*>;
         Path path;
     };
 
@@ -24,18 +24,18 @@ struct ParseError
 
 namespace impl
 {
-    void buildPath(auto& inputs, auto& parseResult, auto& path)
+    void buildPath(const auto& grammar, auto& ParseChart, auto& path)
     {
         const auto& lastItem = *path.back();
 
-        if (lastItem.start == 0 && lastItem.rule.product == inputs.grammar.startSymbol)
+        if (lastItem.start == 0 && lastItem.rule.product == grammar.startSymbol)
         {
             return;
         }
 
         const auto& NT = lastItem.rule.product;
 
-        for (const auto& item : parseResult.S[lastItem.start])
+        for (const auto& item : ParseChart.S[lastItem.start])
         {
             if (std::ranges::contains(path, &item))
             {
@@ -45,7 +45,7 @@ namespace impl
             if (item.isAtSymbol(NT))
             {
                 path.push_back(&item);
-                buildPath(inputs, parseResult, path);
+                buildPath(grammar, ParseChart, path);
                 break;
             }
         }
@@ -53,11 +53,11 @@ namespace impl
 }
 
 template <typename ParserTypes>
-auto makeParseError(const ParserInputs<ParserTypes>& inputs, const typename Parser<ParserTypes>::ParseResult& parseResult)
+ParseError<ParserTypes> parseError(const Grammar<ParserTypes>& grammar, const typename ParseChart<ParserTypes>& ParseChart)
 {
     ParseError<ParserTypes> error;
 
-    const auto& S = parseResult.S;
+    const auto& S = ParseChart.S;
     if (S.empty())
     {
         return error;
@@ -80,7 +80,7 @@ auto makeParseError(const ParserInputs<ParserTypes>& inputs, const typename Pars
             auto& prediction = error.predictions.emplace_back(*LT);
 
             prediction.path.push_back(&item);
-            impl::buildPath(inputs, parseResult, prediction.path);
+            impl::buildPath(grammar, ParseChart, prediction.path);
         }
     }
 

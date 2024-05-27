@@ -6,10 +6,10 @@
 
 namespace larley
 {
+    template <typename ParserTypes>
+    struct Rule;
 
-template <typename ParserTypes>
-struct TreeBuilder
-{
+    template <typename ParserTypes>
     struct Edge
     {
         std::size_t start{};
@@ -17,18 +17,16 @@ struct TreeBuilder
         const Rule<ParserTypes>* rule{};
     };
 
-    using Tree = std::vector<Edge>;
+    template <typename ParserTypes>
+    using ParseTree = std::vector<Edge<ParserTypes>>;
 
-    static Tree buildTree(const ParserInputs<ParserTypes>& inputs, const typename Parser<ParserTypes>::ParseResult& result)
+    template <typename ParserTypes>
+    static ParseTree<ParserTypes> parseTree(const Grammar<ParserTypes>& grammar, const typename ParserTypes::Matcher matcher, const ParseChart<ParserTypes>& chart, typename ParserTypes::Src src)
     {
-        const auto& src = inputs.src;
-        const auto& matcher = inputs.matcher;
-        const auto& grammar = inputs.grammar;
+        const auto& S = chart.S;
 
-        const auto& S = result.S;
-
-        using EdgeSet = std::vector<Edge>;
-        std::vector<EdgeSet> chart(S.size());
+        using EdgeSet = std::vector<Edge<ParserTypes>>;
+        std::vector<EdgeSet> rchart(S.size());
 
         for (std::size_t stateIndex = 0; stateIndex < S.size(); stateIndex++)
         {
@@ -40,27 +38,26 @@ struct TreeBuilder
                     continue;
                 }
 
-                chart[item.start].emplace_back(item.start, stateIndex, &item.rule);
+                rchart[item.start].emplace_back(item.start, stateIndex, &item.rule);
             }
         }
 
-        for (auto& edgeSet : chart)
+        for (auto& edgeSet : rchart)
         {
             std::ranges::sort(edgeSet, [](auto& edge1, auto& edge2)
-            {
+                              {
                 if (edge2.rule && edge1.rule == edge2.rule)
                 {
                     return edge2.end < edge1.end;
                 }
 
-                return edge1.rule < edge2.rule;
-            });
+                return edge1.rule < edge2.rule; });
         }
 
-        const auto splitEdge = [&](Edge edge)
+        const auto splitEdge = [&](Edge<ParserTypes> edge)
         {
             const auto& symbols = edge.rule->symbols;
-            std::vector<Edge> result(symbols.size());
+            std::vector<Edge<ParserTypes>> result(symbols.size());
 
             const auto iter = [&](this auto const& iter, std::size_t depth, std::size_t start)
             {
@@ -80,7 +77,7 @@ struct TreeBuilder
                     overloaded{
                         [&](const ParserTypes::NonTerminal& nt)
                         {
-                            for (const auto& item : chart[start])
+                            for (const auto& item : rchart[start])
                             {
                                 if (item.rule->product == nt && iter(depth + 1, item.end))
                                 {
@@ -115,9 +112,9 @@ struct TreeBuilder
             return result;
         };
 
-        Tree tree;
+        ParseTree<ParserTypes> tree;
 
-        const auto iter = [&](this auto const& iter, Edge edge) -> void
+        const auto iter = [&](this auto const& iter, Edge<ParserTypes> edge) -> void
         {
             tree.push_back(edge);
 
@@ -131,9 +128,9 @@ struct TreeBuilder
             }
         };
 
-        for (const auto& edge : chart[0])
+        for (const auto& edge : rchart[0])
         {
-            if (edge.start == 0 && edge.end == chart.size() - 1 && edge.rule->product == grammar.startSymbol)
+            if (edge.start == 0 && edge.end == rchart.size() - 1 && edge.rule->product == grammar.startSymbol)
             {
                 iter(edge);
                 break;
@@ -142,12 +139,4 @@ struct TreeBuilder
 
         return tree;
     }
-};
-
-template <typename ParserTypes>
-auto buildTree(const ParserInputs<ParserTypes>& inputs, const typename Parser<ParserTypes>::ParseResult& result)
-{
-    return TreeBuilder<ParserTypes>::buildTree(inputs, result);
-}
-
-} // namespace larley
+ }

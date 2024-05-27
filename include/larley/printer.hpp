@@ -9,18 +9,24 @@
 namespace larley
 {
 
-template <typename PrinterTypes>
-struct Printer
+std::size_t findMaximumNonTerminalLenght(const auto& grammar)
 {
     std::size_t maximumNonTerminalLength{};
+    std::ostringstream ss;
+    for (const auto& rule : grammar.rules)
+    {
+        ss.str("");
+        ss << rule.product;
+        maximumNonTerminalLength = std::max(maximumNonTerminalLength, ss.view().size());
+    }
+    return maximumNonTerminalLength;
+}
 
-    std::function<void(std::ostream&, const typename PrinterTypes::Terminal&)> printTerminal;
-    std::function<void(std::ostream&, const typename PrinterTypes::NonTerminal&)> printNonTerminal;
-};
-
-void printTree(const auto& printer, const auto& inputs, const auto& tree)
+void printTree(const auto& grammar, const auto& tree, const auto& src)
 {
-    std::cout << "-------- Tree --------" << std::endl;
+    std::cout << "-------- ParseTree --------" << std::endl;
+
+    const auto maximumNonTerminalLength = findMaximumNonTerminalLenght(grammar);
 
     std::size_t index = 0;
     const auto iter = [&](this const auto& iter, std::size_t depth = 0) -> void
@@ -34,8 +40,7 @@ void printTree(const auto& printer, const auto& inputs, const auto& tree)
 
         if (edge.rule)
         {
-            printer.printNonTerminal(std::cout, edge.rule->product);
-            std::cout <<  " ( " << edge.start << ", " << edge.end << ")\n";
+            std::cout << edge.rule->product <<  " ( " << edge.start << ", " << edge.end << ")\n";
 
             for (int x = 0; x < edge.rule->symbols.size(); x++)
             {
@@ -45,7 +50,7 @@ void printTree(const auto& printer, const auto& inputs, const auto& tree)
         else
         {
             std::cout << '"';
-            printUnescaped({inputs.src.data() + edge.start, inputs.src.data() + edge.end});
+            printUnescaped({src.data() + edge.start, src.data() + edge.end});
             std::cout << "\" ( " << edge.start << ", " << edge.end << ")\n";
         }
     };
@@ -55,27 +60,27 @@ void printTree(const auto& printer, const auto& inputs, const auto& tree)
     std::cout << std::endl << std::endl;
 }
 
-void printError(const auto& printer, const auto& inputs, const auto& parserError)
+void printError(const auto& grammar, const auto& parserError, const auto& src)
 {
     std::cout << "-------- Error --------" << std::endl;
 
-    if (parserError.position >= inputs.src.size())
+    if (parserError.position >= src.size())
     {
         std::cout << "Unexpected end of input " << std::endl;
     }
     else
     {
         std::cout << "Unexcepected character '";
-        printUnescaped({inputs.src.data() + parserError.position, 1});
+        printUnescaped({src.data() + parserError.position, 1});
         std::cout << "' " << std::endl;
     }
 
     std::size_t lineCount{};
     std::size_t lastLineStart{};
 
-    for (std::size_t index{}; index < inputs.src.size() && index < parserError.position; index++)
+    for (std::size_t index{}; index < src.size() && index < parserError.position; index++)
     {
-        if (inputs.src[index] == '\n')
+        if (src[index] == '\n')
         {
             lineCount++;
             lastLineStart = index + 1;
@@ -85,25 +90,24 @@ void printError(const auto& printer, const auto& inputs, const auto& parserError
     const std::size_t column = parserError.position - lastLineStart;
 
     std::cout << "Line " << lineCount << " column " << column << std::endl;
-    printUnescaped({inputs.src.data() + lastLineStart, column + 1});
+    printUnescaped({src.data() + lastLineStart, column + 1});
     std::cout << std::endl << std::setw(column + 1) << '^' << std::endl;
 
     std::cout << std::endl;
 
     std::cout << "Expected one of the following:" << std::endl;
 
+    const auto maximumNonTerminalLength = findMaximumNonTerminalLenght(grammar);
+
     for (const auto& prediction : parserError.predictions)
     {
-        printer.printTerminal(std::cout, prediction.terminal);
-        std::cout << " from:" << std::endl;
+        std::cout << prediction.terminal << " from:" << std::endl;
 
         for (const auto itemPtr : prediction.path)
         {
             const auto& item = *itemPtr;
             const auto& rule = item.rule;
-            std::cout << "    " << std::setw(printer.maximumNonTerminalLength);
-            printer.printNonTerminal(std::cout, rule.product);
-            std::cout << " ->";
+            std::cout << "    " << std::setw(maximumNonTerminalLength) << rule.product << " ->";
 
             for (std::size_t z = 0; z < rule.symbols.size(); z++)
             {
@@ -120,11 +124,11 @@ void printError(const auto& printer, const auto& inputs, const auto& parserError
 
                 if (auto* NT = std::get_if<0>(&symbol))
                 {
-                    printer.printNonTerminal(std::cout, *NT);
+                    std::cout << *NT;
                 }
                 else if (auto* LT = std::get_if<1>(&symbol))
                 {
-                    printer.printTerminal(std::cout, *LT);
+                    std::cout << *LT;
                 }
             }
 
@@ -135,26 +139,26 @@ void printError(const auto& printer, const auto& inputs, const auto& parserError
     }
 }
 
-void printGrammar(const auto& printer, const auto& grammar)
+void printGrammar(const auto& grammar)
 {
     std::cout << "-------- Grammar --------" << std::endl;
 
+    const auto maximumNonTerminalLength = findMaximumNonTerminalLenght(grammar);
+
     for (const auto& rule : grammar.rules)
     {
-        std::cout << std::setw(printer.maximumNonTerminalLength);
-        printer.printNonTerminal(std::cout, rule.product);
-        std::cout << " ->";
+        std::cout << std::setw(maximumNonTerminalLength) << rule.product << " ->";
 
         for (const auto& symbol : rule.symbols)
         {
             std::cout << " ";
             if (auto* NT = std::get_if<0>(&symbol))
             {
-                printer.printNonTerminal(std::cout, *NT);
+                std::cout << *NT;
             }
             else if (auto* LT = std::get_if<1>(&symbol))
             {
-                printer.printTerminal(std::cout, *LT);
+                std::cout << *LT;
             }
         }
 
@@ -164,11 +168,13 @@ void printGrammar(const auto& printer, const auto& grammar)
     std::cout << std::endl;
 }
 
-void printChart(const auto& printer, const auto& inputs, const auto& parseResult)
+void printChart(const auto& grammar, const auto& chart)
 {
     std::cout << "-------- Charts --------" << std::endl;
 
-    const auto& S = parseResult.S;
+    const auto maximumNonTerminalLength = findMaximumNonTerminalLenght(grammar);
+
+    const auto& S = chart.S;
     for (std::size_t x = 0; x < S.size(); x++)
     {
         std::cout << "Chart: " << x << std::endl;
@@ -177,9 +183,7 @@ void printChart(const auto& printer, const auto& inputs, const auto& parseResult
         {
             const auto& item = set[y];
             const auto& rule = item.rule;
-            std::cout << std::setw(printer.maximumNonTerminalLength);
-            printer.printNonTerminal(std::cout, rule.product);
-            std::cout << " ->";
+            std::cout << std::setw(maximumNonTerminalLength) << rule.product << " ->";
 
             for (std::size_t z = 0; z < rule.symbols.size(); z++)
             {
@@ -196,11 +200,11 @@ void printChart(const auto& printer, const auto& inputs, const auto& parseResult
 
                 if (auto* NT = std::get_if<0>(&symbol))
                 {
-                    printer.printNonTerminal(std::cout, *NT);
+                    std::cout << *NT;
                 }
                 else if (auto* LT = std::get_if<1>(&symbol))
                 {
-                    printer.printTerminal(std::cout, *LT);
+                    std::cout << *LT;
                 }
             }
 

@@ -2,13 +2,12 @@
 
 #include "parser.hpp"
 #include "grammar.hpp"
-#include "tree-builder.hpp"
 
 namespace larley
 {
 
 template <typename ParserTypes>
-auto applySemantics(const ParserInputs<ParserTypes>& inputs, const typename TreeBuilder<ParserTypes>::Tree& tree)
+auto parseSemantics(const Semantics<ParserTypes>& semantics, const ParseTree<ParserTypes> tree, typename ParserTypes::Src src)
 {
     using SemanticValue = Semantics<ParserTypes>::SemanticValue;
     using SemanticValues = Semantics<ParserTypes>::SemanticValues;
@@ -34,7 +33,7 @@ auto applySemantics(const ParserInputs<ParserTypes>& inputs, const typename Tree
                 }
             }
 
-            const auto& action = inputs.semantics.actions[edge.rule->id];
+            const auto& action = semantics.actions[edge.rule->id];
             if (action)
             {
                 value = action(values);
@@ -45,7 +44,7 @@ auto applySemantics(const ParserInputs<ParserTypes>& inputs, const typename Tree
             }
         }
 
-        value.src = inputs.src.subspan(edge.start, edge.end - edge.start);
+        value.src = {src.data() + edge.start, src.data() + edge.end};
         return value;
     };
 

@@ -1,20 +1,18 @@
 #pragma once
 
-#include <ranges>
-#include <variant>
-#include <vector>
+#include <optional>
 
 #include "grammar.hpp"
 #include "semantics.hpp"
+#include "printer.hpp"
+#include "parsing-chart.hpp"
+#include "parsing-tree.hpp"
+#include "parser-types.hpp"
+#include "parsing-error.hpp"
+#include "utils.hpp"
 
 namespace larley
 {
-
-template <class... Ts>
-struct overloaded : Ts...
-{
-    using Ts::operator()...;
-};
 
 template <typename T>
 struct CtxHolder
@@ -28,172 +26,98 @@ struct CtxHolder<void>
 };
 
 template <typename ParserTypes>
-//struct ParserInputs : CtxHolder<typename ParserTypes::Ctx>
-struct ParserInputs
+//struct Parser : CtxHolder<typename ParserTypes::Ctx>
+struct Parser
 {
-    ParserTypes::Src src;
+    using Src = typename ParserTypes::Src;
+    using SemanticValue = typename Semantics<ParserTypes>::SemanticValue;
+
     Grammar<ParserTypes> grammar;
     ParserTypes::Matcher matcher;
     Semantics<ParserTypes> semantics;
-};
 
-template <typename ParserTypes>
-struct Parser
-{
-    struct Item
+    Src src;
+
+    std::optional<ParseChart<ParserTypes>> chart;
+    std::optional<ParseTree<ParserTypes>> tree;
+    std::optional<SemanticValue> result;
+
+    std::optional<ParseError<ParserTypes>> error;
+
+    void parseChart()
     {
-        const Rule<ParserTypes>& rule;
-        std::size_t start{};
-        std::size_t dot{};
+        chart = ::parseChart(grammar, matcher, src);
+    }
 
-        bool operator==(const Item& other) const
-        {
-            return &rule == &other.rule && start == other.start && dot == other.dot;
-        }
-
-        Item advanced() const
-        {
-            return {rule, start, dot + 1};
-        }
-
-        bool isComplete() const
-        {
-            return dot >= rule.symbols.size();
-        }
-
-        bool isAtSymbol(ParserTypes::NonTerminal symbol) const
-        {
-            if (isComplete())
-            {
-                return false;
-            }
-
-            const auto ruleSymbol = rule.symbols[dot];
-            return ruleSymbol.index() == 0 && std::get<0>(ruleSymbol) == symbol;
-        }
-    };
-
-    using StateSet = std::vector<Item>;
-
-    struct ParseResult
+    void parseTree()
     {
-        std::vector<StateSet> S;
-        bool completeMatch = false;
-        std::size_t matchCount{};
-    };
+        assert(chart && "chart is not set");
+        assert(chart->matchCount > 0 && "chart has no match");
+        tree = ::parseTree(grammar, matcher, *chart, src);
+    }
 
-    static ParseResult parse(const ParserInputs<ParserTypes>& input)
+    void parseSemantics()
     {
-        const auto& src = input.src;
-        const auto& matcher = input.matcher;
-        const auto& grammar = input.grammar;
+        assert(tree && "tree is not set");
+        result = ::parseSemantics(semantics, *tree, src);
+    }
 
-        ParseResult result;
-
-        auto& S = result.S;
-
-        auto addItem = [&S](std::size_t stateIndex, Item item)
+    void parseError()
+    {
+        assert(chart && "chart is not set");
+        if (chart->matchCount == 0 || !chart->completeMatch)
         {
-            if (S.size() <= stateIndex)
-            {
-                S.resize(stateIndex + 1);
-            }
-
-            StateSet& set = S[stateIndex];
-            if (std::find(set.begin(), set.end(), item) == set.end())
-            {
-                set.push_back(item);
-            }
-        };
-
-        S.emplace_back();
-
-        for (const auto& rule : grammar.rules)
+            error = ::parseError(grammar, *chart);
+        }
+        else 
         {
-            if (rule.product == grammar.startSymbol)
-            {
-                addItem(0, {rule});
-            }
+            error = std::nullopt;
+        }
+    }
+
+    void printGrammar()
+    {
+        ::printGrammar(grammar);
+    }
+
+    void printChart()
+    {
+        assert(chart && "chart is not set");
+        ::printChart(grammar, *chart);
+    }
+
+    void printTree()
+    {
+        assert(tree && "tree is not set");
+        ::printTree(grammar, *tree, src);
+    }
+
+    void printError()
+    {
+        assert(error && "error is not set");
+        ::printError(grammar, *error, src);
+    }
+
+    SemanticValue parse(Src source, bool acceptPartialMatch = false)
+    {
+        src = source;
+
+        chart = std::nullopt;
+        tree = std::nullopt;
+        result = std::nullopt;
+        error = std::nullopt;
+
+        parseChart();
+        if (chart->matchCount <= 0 || (!acceptPartialMatch && !chart->completeMatch))
+        {
+            parseError();
+            return {};
         }
 
-        for (std::size_t stateIndex = 0; stateIndex < S.size(); stateIndex++)
-        {
-            for (std::size_t itemIndex = 0; itemIndex < S[stateIndex].size(); itemIndex++)
-            {
-                const auto item = S[stateIndex][itemIndex];
-
-                if (item.isComplete())
-                {
-                    for (std::size_t potentialIndex = 0; potentialIndex < S[item.start].size(); potentialIndex++)
-                    {
-                        const auto& potentialItem = S[item.start][potentialIndex];
-
-                        if (potentialItem.isComplete())
-                        {
-                            continue;
-                        }
-
-                        const auto symbol = potentialItem.rule.symbols[potentialItem.dot];
-                        if (potentialItem.isAtSymbol(item.rule.product))
-                        {
-                            addItem(stateIndex, potentialItem.advanced());
-                        }
-                    }
-
-                    continue;
-                }
-
-                const auto symbol = item.rule.symbols[item.dot];
-                std::visit(
-                    overloaded{
-                        [&](const ParserTypes::NonTerminal& nt)
-                        {
-                            for (const auto& rule : grammar.rules)
-                            {
-                                if (rule.product == nt)
-                                {
-                                    addItem(stateIndex, {rule, stateIndex});
-
-                                    if (grammar.nullables.contains(rule.product))
-                                    {
-                                        addItem(stateIndex, item.advanced());
-                                    }
-                                }
-                            }
-                        },
-                        [&](const ParserTypes::Terminal& lt)
-                        {
-                            const auto matchLength = matcher(src, stateIndex, lt);
-                            if (matchLength > 0)
-                            {
-                                addItem(stateIndex + matchLength, item.advanced());
-                            }
-                        }},
-                    symbol);
-            }
-        }
-
-        if (S.size() == src.size() + 1)
-        {
-            result.completeMatch = true;
-        }
-
-        for (const auto& item : S.back())
-        {
-            if (item.start == 0 && item.isComplete() && item.rule.product == grammar.startSymbol)
-            {
-                result.matchCount++;
-            }
-        }
-
-        return result;
+        parseTree();
+        parseSemantics();
+        return *result;
     }
 };
-
-template <typename ParserTypes>
-auto parse(const ParserInputs<ParserTypes>& inputs)
-{
-    return Parser<ParserTypes>::parse(inputs);
-}
 
 } // namespace larley

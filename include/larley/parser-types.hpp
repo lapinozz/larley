@@ -1,16 +1,16 @@
 #pragma once
 
 #include <functional>
-#include <span>
+#include <string_view>
 
-template <typename NonTerminalT, typename TerminalT, typename SrcElementT = char, typename CtxT = void>
+template <typename NonTerminalT, typename TerminalT, typename SrcT = std::string_view, typename CtxT = void>
 struct ParserTypes
 {
     using Terminal = TerminalT;
     using NonTerminal = NonTerminalT;
 
-    using SrcElement = SrcElementT;
-    using Src = std::span<const SrcElement>;
+    using SrcElement = SrcT;
+    using Src = SrcT;
 
     using Matcher = std::function<int(Src, std::size_t, const Terminal&)>;
 
