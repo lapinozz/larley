@@ -7,14 +7,7 @@
 
 #include "../utils.hpp"
 
-#include "larley/parser-types.hpp"
-#include "larley/printer.hpp"
-#include "larley/parser.hpp"
 #include "larley/string-grammar.hpp"
-#include "larley/tree-builder.hpp"
-#include "larley/apply-semantics.hpp"
-#include "larley/parsing-error.hpp"
-
 #include "json.hpp"
 
 using namespace larley;
@@ -338,27 +331,16 @@ void parseJson()
 }
 )";
 
+	auto parser = gb.makeParser();
 
-	const auto inputs = gb.makeInputs(str);
-
-    const auto printer = gb.makePrinter(inputs, &enumToString<NonTerminals>);
-
-	printGrammar(printer, inputs.grammar);
-
-	auto parsed = parse(inputs);
-	std::cout << "Match found: " << parsed.matchCount << std::endl;
-    //printChart(printer, inputs, parsed);
-
-	const auto error = makeParseError(inputs, parsed);
-    //printError(printer, inputs, error);
-
-	auto tree = buildTree(inputs, parsed);
-    //printTree(printer, inputs, tree);
-
-	auto result = applySemantics(inputs, tree);
-	//std::cout << std::any_cast<float>(result) << std::endl;
-
-    Json::print(std::cout, std::any_cast<Json::Value>(result), 0); 
+    if (auto result = parser.parse(str); result.has_value())
+    {
+        Json::print(std::cout, std::any_cast<Json::Value>(*parser.result), 0); 
+    }
+    else
+    {
+        parser.printError();
+    }
 }
 
 int main()

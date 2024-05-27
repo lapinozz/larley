@@ -7,13 +7,7 @@
 
 #include "../utils.hpp"
 
-#include "larley/parser-types.hpp"
-#include "larley/printer.hpp"
-#include "larley/parser.hpp"
 #include "larley/string-grammar.hpp"
-#include "larley/tree-builder.hpp"
-#include "larley/apply-semantics.hpp"
-#include "larley/parsing-error.hpp"
 
 using namespace larley;
 
@@ -81,25 +75,24 @@ void testMaths()
 // clang-format on
 
 	//std::string str = " 1 + ( 2  / 3 ) \t* \t\t\t4.5 ";
-    std::string str = "1+1+1+1";
+    std::string str = "1+1+1+1+";
 
-	const auto inputs = gb.makeInputs(str);
-    const auto printer = gb.makePrinter(inputs, &enumToString<NonTerminals>);
+	auto parser = gb.makeParser();
 
-	printGrammar(printer, inputs.grammar);
+	parser.printGrammar();
 
-	auto parsed = parse(inputs);
-	std::cout << "Match found: " << parsed.matchCount << std::endl;
-    printChart(printer, inputs, parsed);
+	if (auto result = parser.parse(str); result.has_value())
+    {
+        parser.printChart();
+        parser.printTree();
 
-	const auto error = makeParseError(inputs, parsed);
-    printError(printer, inputs, error);
-
-	auto tree = buildTree(inputs, parsed);
-    printTree(printer, inputs, tree);
-
-	auto result = applySemantics(inputs, tree);
-	std::cout << std::any_cast<float>(result) << std::endl;
+        std::cout << std::any_cast<float>(result) << std::endl;
+	}
+	else
+    {
+        parser.printChart();
+        parser.printError();
+	}
 }
 
 void testPriority()
@@ -124,7 +117,6 @@ void testPriority()
 	gb1(If) >> "if" & Block;
 	gb1(If) >> "if" & Block & "else" & Block;
 
-
 	GB gb2(Block);
 	gb2(Block) >> "{}";
 	gb2(Block) >> If;
@@ -133,20 +125,14 @@ void testPriority()
 
 	std::string str = "ifif{}else{}";
 
-	const auto inputs1{gb1.makeInputs(str)};
-    const auto inputs2{gb2.makeInputs(str)};
+	auto parser1 = gb1.makeParser();
+    auto parser2 = gb2.makeParser();
 
-    const auto printer1{gb1.makePrinter(inputs1, enumToString<IfGrammar>)};
-    const auto printer2{gb2.makePrinter(inputs2, enumToString<IfGrammar>)};
+	parser1.parse(str);
+    parser2.parse(str);
 
-	const auto parsed1 = parse(inputs1);
-    const auto parsed2 = parse(inputs2);
-    
-	auto tree1 = buildTree(inputs1, parsed1);
-    auto tree2 = buildTree(inputs2, parsed2);
-
-	printTree(printer1, inputs1, tree1);
-    printTree(printer2, inputs2, tree2);
+    parser1.printTree();
+    parser2.printTree();
 }
 
 void testBlowout()
@@ -169,12 +155,9 @@ void testBlowout()
 	gb(A);
 
 	std::string str = "";
-    const auto inputs = gb.makeInputs(str);
-
-	const auto parsed = parse(inputs);
-	const auto tree = buildTree(inputs, parsed);
-
-	printTree(gb.makePrinter(inputs, enumToString<BlowoutGrammar>), inputs, tree);
+    auto parser = gb.makeParser();
+    parser.parse(str);
+    parser.printTree();
 }
 
 void testEmptyRuleGrammar()
@@ -204,19 +187,16 @@ void testEmptyRuleGrammar()
 	gb(T) >> T& A & S & B;
 
 	std::string str = "S";
-    const auto inputs = gb.makeInputs(str);
-
-    const auto parsed = parse(inputs);
-    const auto tree = buildTree(inputs, parsed);
-
-    printTree(gb.makePrinter(inputs, enumToString<EmptyGrammar>), inputs, tree);
+    auto parser = gb.makeParser();
+    parser.parse(str);
+    parser.printTree();
 }
 
 int main()
-{
+{ 
+	testMaths();
 	testEmptyRuleGrammar();
 	testPriority();
-	testMaths();
 
 	try
 	{
