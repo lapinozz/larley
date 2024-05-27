@@ -192,6 +192,43 @@ void testEmptyRuleGrammar()
     parser.printTree();
 }
 
+void testCtx()
+{
+    enum CtxGrammar
+    {
+        Item,
+        List,
+    };
+
+	using Ctx = std::unordered_map<std::string_view, int>;
+
+    using PT = ParserTypes<CtxGrammar, StringGrammar::TerminalSymbol, std::string_view, Ctx>;
+
+    using GB = StringGrammarBuilder<PT>;
+
+    using RuleBuilder = typename GB::RuleBuilder;
+    using Range = typename GB::Range;
+    using Choice = typename GB::Choice;
+    using Regex = typename GB::Regex;
+
+    GB gb(List);
+    gb(List) >> Item;
+    gb(List) >> Item & "," & List;
+    gb(Item) >> Regex{"item[0-9]+"} | [](auto& values, Ctx* ctx) {(*ctx)[values[0].src]++; };
+
+	Ctx ctx;
+    std::string str = "item0,item1,item0,item45,item0,item67,item45";
+
+    auto parser = gb.makeParser();
+    parser.parse(str, &ctx);
+    parser.printTree();
+
+	for (const auto& [item, count] : ctx)
+	{
+        std::cout << item << ": " << count << std::endl;
+	}
+}
+
 int main()
 { 
 	testMaths();
@@ -205,4 +242,6 @@ int main()
 	catch (...)
 	{
 	}
+
+	testCtx();
 }
