@@ -37,69 +37,68 @@ using RegexTerminalSymbol = SavedRegex;
 
 using TerminalSymbol = std::variant<LiteralTerminalSymbol, ChoiceTerminalSymbol, RangeTerminalSymbol, RegexTerminalSymbol>;
 
-int match(std::string_view src, size_t index, const TerminalSymbol& symbol)
+int match(std::string_view src, size_t index, const TerminalSymbol& terminal)
 {
-    return std::visit(
-        overloaded{
-            [&](const LiteralTerminalSymbol& symbol) -> int
+    if (auto* symbol = std::get_if<LiteralTerminalSymbol>(&terminal))
+    {
+        if (index + symbol->size() > src.size())
+        {
+            return -1;
+        }
+
+        const std::string_view subsrc(src.begin() + index, src.begin() + index + symbol->size());
+        const auto matches = subsrc == *symbol;
+
+        return matches ? static_cast<int>(subsrc.size()) : -1;
+    }
+    else if (auto* symbol = std::get_if<ChoiceTerminalSymbol>(&terminal))
+    {
+        for (const auto& partial : *symbol)
+        {
+            if (index + partial.size() >= src.size())
             {
-                if (index + symbol.size() > src.size())
-                {
-                    return -1;
-                }
+                continue;
+            }
 
-                const std::string_view subsrc(src.begin() + index, src.begin() + index + symbol.size());
-                const auto matches = subsrc == symbol;
-
-                return matches ? static_cast<int>(subsrc.size()) : -1;
-            },
-            [&](const ChoiceTerminalSymbol& symbol) -> int
+            const std::string_view subsrc(src.begin() + index, src.begin() + index + partial.size());
+            if (const auto matches = subsrc == partial)
             {
-                for (const auto& partial : symbol)
-                {
-                    if (index + partial.size() >= src.size())
-                    {
-                        continue;
-                    }
+                return static_cast<int>(subsrc.size());
+            }
+        }
 
-                    const std::string_view subsrc(src.begin() + index, src.begin() + index + partial.size());
-                    if (const auto matches = subsrc == partial)
-                    {
-                        return static_cast<int>(subsrc.size());
-                    }
-                }
+        return -1;
+    }
+    else if (auto* symbol = std::get_if<RangeTerminalSymbol>(&terminal))
+    {
+        if (index >= src.size())
+        {
+            return -1;
+        }
 
-                return -1;
-            },
-            [&](const RangeTerminalSymbol& symbol) -> int
-            {
-                if (index >= src.size())
-                {
-                    return -1;
-                }
+        if (const auto matches = src[index] >= symbol->first[0] && src[index] <= symbol->second[0])
+        {
+            return 1;
+        }
 
-                if (const auto matches = src[index] >= symbol.first[0] && src[index] <= symbol.second[0])
-                {
-                    return 1;
-                }
+        return -1;
+    }
+    else if (auto* symbol = std::get_if<RegexTerminalSymbol>(&terminal))
+    {
+        if (index >= src.size())
+        {
+            return -1;
+        }
 
-                return -1;
-            },
-            [&](const RegexTerminalSymbol& symbol) -> int
-            {
-                if (index >= src.size())
-                {
-                    return -1;
-                }
+        if (std::cmatch match; std::regex_search(src.data() + index, src.data() + src.size(), match, *symbol, std::regex_constants::match_continuous))
+        {
+            return match[0].length();
+        }
 
-                if (std::cmatch match; std::regex_search(src.data() + index, src.data() + src.size(), match, symbol, std::regex_constants::match_continuous))
-                {
-                    return match[0].length();
-                }
+        return -1;
+    }
 
-                return -1;
-            }},
-        symbol);
+    std::unreachable();
 }
 
 std::ostream& operator<<(std::ostream& os, const StringGrammar::TerminalSymbol& symbol)

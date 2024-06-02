@@ -6,6 +6,8 @@
 #include <vector>
 #include <cstdint>
 
+#include "utils.hpp"
+
 namespace larley
 {
 
@@ -62,14 +64,14 @@ struct Grammar
     using LT = ParserTypes::Terminal;
     using RuleT = Rule<ParserTypes>;
 
+    NT startSymbol;
+    std::vector<RuleT> rules;
+    std::unordered_set<NT> nullables;
+
     Grammar(NT startSymbol, std::vector<RuleT> rules) : startSymbol{startSymbol}, rules{std::move(rules)}, nullables{makeNullableSet()}
     {
         check();
     }
-
-    NT startSymbol;
-    std::vector<RuleT> rules;
-    std::unordered_set<NT> nullables;
 
     bool isNullable(const RuleT& rule) const
     {

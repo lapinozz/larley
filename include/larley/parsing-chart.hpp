@@ -10,12 +10,12 @@ template <typename ParserTypes>
 struct Item
 {
     const Rule<ParserTypes>& rule;
-    std::size_t start{};
-    std::size_t dot{};
+    std::size_t start;
+    std::size_t dot;
 
     bool operator==(const Item& other) const
     {
-        return &rule == &other.rule && start == other.start && dot == other.dot;
+        return start == other.start && dot == other.dot && &rule == &other.rule;
     }
 
     Item advanced() const
@@ -35,13 +35,24 @@ struct Item
             return false;
         }
 
-        const auto ruleSymbol = rule.symbols[dot];
+        const auto& ruleSymbol = rule.symbols[dot];
         return ruleSymbol.index() == 0 && std::get<0>(ruleSymbol) == symbol;
     }
+
+    struct Hash
+    {
+        std::size_t operator()(const Item& item) const noexcept
+        {
+            return std::hash<std::size_t>{}((item.start << 32) | (item.rule.id << 16) | (item.dot << 0));
+        }
+    };
 };
 
 template <typename ParserTypes>
-using StateSet = std::vector<Item<ParserTypes>>;
+struct StateSet : std::vector<Item<ParserTypes>>
+{
+    std::unordered_set<Item<ParserTypes>, typename Item<ParserTypes>::Hash> added;
+};
 
 template <typename ParserTypes>
 struct ParseChart
@@ -52,92 +63,119 @@ struct ParseChart
 };
 
 template<typename ParserTypes>
-static ParseChart<ParserTypes> parseChart(Grammar<ParserTypes>& grammar, typename ParserTypes::Matcher& matcher, typename ParserTypes::Src src)
+static ParseChart<ParserTypes> parseChart(const Grammar<ParserTypes>& grammar, const typename ParserTypes::Matcher& matcher, typename ParserTypes::Src src)
 {
     ParseChart<ParserTypes> result;
 
     auto& S = result.S;
+    S.resize(src.size() + 1);
 
-    auto addItem = [&S](std::size_t stateIndex, Item<ParserTypes> item)
+    std::vector<bool> ruleStarted;
+    ruleStarted.resize(grammar.rules.size());
+
+    const auto addItem = [&](auto& set, Item<ParserTypes>&& item)
     {
-        if (S.size() <= stateIndex)
+        if constexpr (true)
         {
-            S.resize(stateIndex + 1);
-        }
+            if (item.dot == 0)
+            {
+                if (ruleStarted[item.rule.id])
+                {
+                    return;
+                }
 
-        auto& set = S[stateIndex];
-        if (std::find(set.begin(), set.end(), item) == set.end())
+                ruleStarted[item.rule.id] = true;
+            }
+
+            if (set.added.insert(std::move(item)).second)
+            {
+                set.push_back(std::move(item));
+            }
+        }
+        else
         {
-            set.push_back(item);
+            if (std::find(set.begin(), set.end(), item) == set.end())
+            {
+                set.push_back(std::move(item));
+            }
         }
     };
 
-    S.emplace_back();
-
+    std::unordered_map<typename ParserTypes::NonTerminal, std::vector<const Rule<ParserTypes>*>> productToRules;
     for (const auto& rule : grammar.rules)
     {
-        if (rule.product == grammar.startSymbol)
-        {
-            addItem(0, {rule});
-        }
+        productToRules[rule.product].push_back(&rule);
+    }
+
+    for (const auto* rule : productToRules.at(grammar.startSymbol))
+    {
+        addItem(S[0], {*rule, 0, 0});
     }
 
     for (std::size_t stateIndex = 0; stateIndex < S.size(); stateIndex++)
     {
-        for (std::size_t itemIndex = 0; itemIndex < S[stateIndex].size(); itemIndex++)
+        auto& set = S[stateIndex];
+
+        ruleStarted.resize(0);
+        ruleStarted.resize(grammar.rules.size());
+
+        for (std::size_t itemIndex = 0; itemIndex < set.size(); itemIndex++)
         {
-            const auto item = S[stateIndex][itemIndex];
+            const auto item = set[itemIndex];
 
             if (item.isComplete())
             {
-                for (std::size_t potentialIndex = 0; potentialIndex < S[item.start].size(); potentialIndex++)
+                const auto& potentialSet = S[item.start];
+                for (std::size_t potentialIndex = 0; potentialIndex < potentialSet.size(); potentialIndex++)
                 {
-                    const auto& potentialItem = S[item.start][potentialIndex];
-
-                    if (potentialItem.isComplete())
-                    {
-                        continue;
-                    }
-
-                    const auto symbol = potentialItem.rule.symbols[potentialItem.dot];
+                    const auto& potentialItem = potentialSet[potentialIndex];
                     if (potentialItem.isAtSymbol(item.rule.product))
                     {
-                        addItem(stateIndex, potentialItem.advanced());
+                        addItem(set, potentialItem.advanced());
                     }
                 }
 
                 continue;
             }
 
-            const auto symbol = item.rule.symbols[item.dot];
-            std::visit(
-                overloaded{
-                    [&](const ParserTypes::NonTerminal& nt)
-                    {
-                        for (const auto& rule : grammar.rules)
-                        {
-                            if (rule.product == nt)
-                            {
-                                addItem(stateIndex, {rule, stateIndex});
+            const auto& symbol = item.rule.symbols[item.dot];
 
-                                if (grammar.nullables.contains(rule.product))
-                                {
-                                    addItem(stateIndex, item.advanced());
-                                }
-                            }
-                        }
-                    },
-                    [&](const ParserTypes::Terminal& lt)
+            if (auto* nt = std::get_if<0>(&symbol))
+            {
+                if (grammar.nullables.contains(*nt))
+                {
+                    addItem(set, item.advanced());
+                }
+
+                const auto it = productToRules.find(*nt);
+                if (it != productToRules.end())
+                {
+                    for (const auto* rule : it->second)
                     {
-                        const auto matchLength = matcher(src, stateIndex, lt);
-                        if (matchLength > 0)
-                        {
-                            addItem(stateIndex + matchLength, item.advanced());
-                        }
-                    }},
-                symbol);
+                        addItem(set, {*rule, stateIndex, 0});
+                    }
+                }
+            }
+            else if (auto* lt = std::get_if<1>(&symbol))
+            {
+                const auto matchLength = matcher(src, stateIndex, *lt);
+                if (matchLength > 0)
+                {
+                    addItem(S[stateIndex + matchLength], item.advanced());
+                }
+            }
         }
     }
+
+    std::size_t setCount{};
+    for (std::size_t index{}; index < S.size(); index++)
+    {
+        if (!S.empty())
+        {
+            setCount = index + 1;
+        }
+    }
+    S.resize(setCount);
 
     if (S.size() == src.size() + 1)
     {

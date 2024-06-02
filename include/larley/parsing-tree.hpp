@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <deque>
 
 #include "parsing-chart.hpp"
 
@@ -45,66 +46,61 @@ namespace larley
         for (auto& edgeSet : rchart)
         {
             std::ranges::sort(edgeSet, [](auto& edge1, auto& edge2)
-                              {
+            {
                 if (edge2.rule && edge1.rule == edge2.rule)
                 {
-                    return edge2.end < edge1.end;
+                    return edge1.end > edge2.end;
                 }
 
-                return edge1.rule < edge2.rule; });
+                return edge1.rule < edge2.rule; 
+            });
         }
 
-        const auto splitEdge = [&](Edge<ParserTypes> edge)
+        std::vector<Edge<ParserTypes>> result;
+        const auto splitEdge = [&](const Edge<ParserTypes>& edge)
         {
             const auto& symbols = edge.rule->symbols;
-            std::vector<Edge<ParserTypes>> result(symbols.size());
+            const auto symbolCount = symbols.size();
+            result.resize(symbolCount);
 
             const auto iter = [&](this auto const& iter, std::size_t depth, std::size_t start)
             {
-                if (depth == symbols.size() && start == edge.end)
+                if (depth == symbolCount && start == edge.end)
                 {
                     return true;
                 }
 
-                if (depth >= symbols.size())
+                if (depth >= symbolCount)
                 {
                     return false;
                 }
 
                 const auto& symbol = symbols[depth];
-
-                const bool found = std::visit(
-                    overloaded{
-                        [&](const ParserTypes::NonTerminal& nt)
+                if (auto* nt = std::get_if<0>(&symbol))
+                {
+                    for (const auto& item : rchart[start])
+                    {
+                        if (item.rule->product == *nt && iter(depth + 1, item.end))
                         {
-                            for (const auto& item : rchart[start])
-                            {
-                                if (item.rule->product == nt && iter(depth + 1, item.end))
-                                {
-                                    result[depth] = item;
-                                    return true;
-                                }
-                            }
-
-                            return false;
-                        },
-                        [&](const ParserTypes::Terminal& lt)
+                            result[depth] = item;
+                            return true;
+                        }
+                    }
+                }
+                else if (auto* lt = std::get_if<1>(&symbol))
+                {
+                    const auto matchLength = matcher(src, start, *lt);
+                    if (matchLength > 0)
+                    {
+                        if (iter(depth + 1, start + matchLength))
                         {
-                            const auto matchLength = matcher(src, start, lt);
-                            if (matchLength > 0)
-                            {
-                                if (iter(depth + 1, start + matchLength))
-                                {
-                                    result[depth] = {start, start + matchLength};
-                                    return true;
-                                }
-                            }
+                            result[depth] = {start, start + matchLength};
+                            return true;
+                        }
+                    }
+                }
 
-                            return false;
-                        }},
-                    symbol);
-
-                return found;
+                return false;
             };
 
             iter(0, edge.start);
@@ -114,14 +110,13 @@ namespace larley
 
         ParseTree<ParserTypes> tree;
 
-        const auto iter = [&](this auto const& iter, Edge<ParserTypes> edge) -> void
+        const auto iter = [&](this auto const& iter, const Edge<ParserTypes>& edge) -> void
         {
             tree.push_back(edge);
 
             if (edge.rule)
             {
-                const auto split = splitEdge(edge);
-                for (const auto& subEdge : split)
+                for (const auto& subEdge : splitEdge(edge))
                 {
                     iter(subEdge);
                 }
