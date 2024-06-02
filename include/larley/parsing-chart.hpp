@@ -87,7 +87,7 @@ static ParseChart<ParserTypes> parseChart(const Grammar<ParserTypes>& grammar, c
                 ruleStarted[item.rule.id] = true;
             }
 
-            if (set.added.insert(std::move(item)).second)
+            if (set.added.insert(item).second)
             {
                 set.push_back(std::move(item));
             }
