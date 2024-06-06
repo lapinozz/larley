@@ -170,7 +170,7 @@ static ParseChart<ParserTypes> parseChart(const Grammar<ParserTypes>& grammar, c
     std::size_t setCount{};
     for (std::size_t index{}; index < S.size(); index++)
     {
-        if (!S.empty())
+        if (!S[index].empty())
         {
             setCount = index + 1;
         }
