@@ -4,6 +4,7 @@
 #include <print>
 #include <iomanip>
 #include <charconv>
+#include <unordered_map>
 
 #include "../utils.hpp"
 
@@ -75,7 +76,7 @@ void testMaths()
 // clang-format on
 
 	//std::string str = " 1 + ( 2  / 3 ) \t* \t\t\t4.5 ";
-    std::string str = "1+1+1+1+";
+    std::string str = "1+1+1+1";
 
 	auto parser = gb.makeParser();
 
