@@ -70,6 +70,10 @@ struct Grammar
 
     Grammar(NT startSymbol, std::vector<RuleT> rules) : startSymbol{startSymbol}, rules{std::move(rules)}, nullables{makeNullableSet()}
     {
+        for (std::size_t x = 0; x < this->rules.size(); x++)
+        {
+            this->rules[x].id = x;
+        }
         check();
     }
 
